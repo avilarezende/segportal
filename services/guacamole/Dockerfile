@@ -6,8 +6,8 @@ FROM guacamole/guacamole:${GUACAMOLE_VERSION}
 
 USER root
 
-# LDAP authentication extension (Apache Guacamole 1.5.5)
-# Distributed as tar.gz — JAR is inside the archive, not standalone.
+# Re-declare build args for use in RUN (ARG before FROM is not available here)
+ARG GUACAMOLE_VERSION=1.5.5
 ARG LDAP_EXTENSION_VERSION=1.5.5
 ARG GUACAMOLE_BINARY_BASE=https://dlcdn.apache.org/guacamole
 RUN mkdir -p /etc/guacamole/extensions /tmp/guac-ext \
