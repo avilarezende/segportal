@@ -80,3 +80,29 @@ class TestGuacamoleDockerfile:
         dockerfile = (ROOT / "services" / "guacamole" / "Dockerfile").read_text()
         assert "COPY config/guacamole/" in dockerfile
         assert "COPY services/guacamole/" in dockerfile
+
+
+class TestDocumentationImages:
+    """Imagens JPG para exibição no GitHub."""
+
+    @pytest.fixture
+    def images_dir(self) -> Path:
+        return ROOT / "docs" / "images"
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "architecture-overview.jpg",
+            "auth-flow.jpg",
+            "k8s-pods.jpg",
+            "segportal-mockup.jpg",
+            "usage-login.jpg",
+            "usage-portal.jpg",
+            "usage-session.jpg",
+        ],
+    )
+    def test_jpg_images_exist(self, images_dir: Path, name: str) -> None:
+        assert (images_dir / name).is_file(), f"Imagem ausente: {name}"
+
+    def test_manual_exists(self) -> None:
+        assert (ROOT / "docs" / "MANUAL.md").is_file()
