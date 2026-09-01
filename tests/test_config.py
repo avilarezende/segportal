@@ -73,7 +73,8 @@ class TestDockerCompose:
 class TestGuacamoleDockerfile:
     def test_ldap_extension_version(self) -> None:
         dockerfile = (ROOT / "services" / "guacamole" / "Dockerfile").read_text()
-        assert "guacamole-auth-ldap-1.5.5.jar" in dockerfile
+        assert "guacamole-auth-ldap-${LDAP_EXTENSION_VERSION}.jar" in dockerfile
+        assert "guacamole-auth-ldap-${LDAP_EXTENSION_VERSION}.tar.gz" in dockerfile
         assert "GUACAMOLE_VERSION=1.5.5" in dockerfile
 
     def test_build_from_repo_root(self) -> None:
