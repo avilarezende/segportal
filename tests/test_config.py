@@ -21,7 +21,7 @@ class TestGuacamoleProperties:
         content = (config_root / "guacamole" / "guacamole.properties").read_text()
         assert "ldap-hostname" in content
         assert "ldap-user-base-dn" in content
-        assert "${LDAP_HOSTNAME}" in content
+        assert "${LDAP_HOSTNAME" in content
 
     def test_guacamole_properties_has_postgresql(self, config_root: Path) -> None:
         content = (config_root / "guacamole" / "guacamole.properties").read_text()
@@ -66,8 +66,22 @@ class TestDockerCompose:
 
     def test_required_services(self) -> None:
         content = (ROOT / "docker-compose.yml").read_text()
-        for service in ("postgres", "guacd", "guacamole", "proxy-egress"):
+        for service in (
+            "postgres",
+            "guacd",
+            "guacamole",
+            "proxy-egress",
+            "web-browser",
+            "portal-auth",
+            "segportal-bootstrap",
+        ):
             assert f"{service}:" in content
+
+    def test_dev_compose_auto_browser(self) -> None:
+        content = (ROOT / "docker-compose.dev.yml").read_text()
+        assert "segportal-bootstrap:" in content
+        assert "web-browser:" in content
+        assert "Navegador Web SegPortal" in content
 
 
 class TestGuacamoleDockerfile:
@@ -100,6 +114,11 @@ class TestDocumentationImages:
             "usage-login.jpg",
             "usage-portal.jpg",
             "usage-session.jpg",
+            "usage-browser.jpg",
+            "usage-browser-bacen.jpg",
+            "admin-approvals.jpg",
+            "portal-files.jpg",
+            "portal-home-ad.jpg",
         ],
     )
     def test_jpg_images_exist(self, images_dir: Path, name: str) -> None:
@@ -107,3 +126,22 @@ class TestDocumentationImages:
 
     def test_manual_exists(self) -> None:
         assert (ROOT / "docs" / "MANUAL.md").is_file()
+        assert (ROOT / "docs" / "USER_MANUAL.md").is_file()
+        assert (ROOT / "docs" / "ADMIN_MANUAL.md").is_file()
+
+    def test_docs_mention_default_browser(self) -> None:
+        for rel in (
+            "docs/MANUAL.md",
+            "docs/USAGE.md",
+            "docs/CONNECTIONS.md",
+            "docs/CONFIGURATION.md",
+            "docs/ROLES.md",
+            "README.md",
+        ):
+            text = (ROOT / rel).read_text(encoding="utf-8")
+            assert "Navegador Web SegPortal" in text, f"Falta navegador padrão em {rel}"
+
+    def test_docs_mention_bacen_example(self) -> None:
+        for rel in ("docs/USAGE.md", "docs/USER_MANUAL.md", "README.md"):
+            text = (ROOT / rel).read_text(encoding="utf-8")
+            assert "bcb.gov.br" in text or "Bacen" in text, f"Falta exemplo Bacen em {rel}"

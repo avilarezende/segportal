@@ -23,10 +23,12 @@ flowchart LR
 
 | Job | Descrição |
 |-----|-----------|
-| `lint-and-test` | Ruff + pytest |
+| `lint-and-test` | Ruff + pytest (inclui portal-auth) |
 | `validate-k8s` | `kubectl kustomize` + kubeconform |
-| `docker-build` | Build guacamole, guacd, egress-proxy (sem push) |
-| `compose-config` | Valida `docker-compose.yml` |
+| `docker-build` | Build guacamole, guacd, egress-proxy, web-browser, **portal-auth** (sem push) |
+| `compose-config` | Valida `docker-compose.yml` e `docker-compose.dev.yml` |
+
+No monorepo `conversador-pop-se`, o workflow espelho é `.github/workflows/segportal-ci.yml` (GitHub só executa workflows na raiz do repositório).
 
 Badge no README aponta para este workflow.
 
@@ -59,9 +61,13 @@ Badge no README aponta para este workflow.
 registry.tjse.jus.br/segportal/guacamole:<tag>
 registry.tjse.jus.br/segportal/guacd:<tag>
 registry.tjse.jus.br/segportal/egress-proxy:<tag>
+registry.tjse.jus.br/segportal/web-browser:<tag>
+registry.tjse.jus.br/segportal/portal-auth:<tag>
 ```
 
 Tags: SHA do commit, `latest`, ou versão semântica (`v1.0.0`).
+
+O Job `segportal-bootstrap` (navegador HTML padrão) é aplicado nos overlays K8s após o deploy.
 
 ## Pull Requests
 

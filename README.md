@@ -1,10 +1,12 @@
 # SegPortal — Portal ZTNA do TJSE
 
+**Versão:** 2026-09-05 (portal-auth · pastas AD · OneDrive/Google Drive · navegador Bacen)
+
 [![CI](https://github.com/avilarezende/segportal/actions/workflows/ci.yml/badge.svg)](https://github.com/avilarezende/segportal/actions/workflows/ci.yml)
 
-**SegPortal** é o portal de acesso seguro do **Tribunal de Justiça de Sergipe (TJSE)**. Baseado em [Apache Guacamole](https://guacamole.apache.org/), substitui a VPN interna por um modelo **ZTNA** (Zero Trust Network Access): o usuário autentica no domínio `tjse.jus.br` com **LDAP + MFA** e acessa recursos internos (RDP, VNC, SSH) ou sites externos **direto no navegador**, sem instalar cliente VPN.
-
 **Repositório:** https://github.com/avilarezende/segportal
+
+**SegPortal** é o portal de acesso seguro do **Tribunal de Justiça de Sergipe (TJSE)**. Baseado em [Apache Guacamole](https://guacamole.apache.org/), substitui a VPN interna por um modelo **ZTNA** (Zero Trust Network Access): autenticação local e/ou LDAP (`tjse.jus.br`) com MFA opcional, e acesso a RDP, VNC, SSH e navegação web **direto no navegador**, sem cliente VPN.
 
 ---
 
@@ -12,8 +14,8 @@
 
 | Público | O que encontrar aqui |
 |---------|----------------------|
-| **Usuário final** | [Manual de uso](docs/MANUAL.md) — login, recursos e sessões |
-| **Administrador** | [Configuração](docs/CONFIGURATION.md) — LDAP, MFA, proxy, K8s |
+| **Usuário final** | [Manual do usuário](docs/USER_MANUAL.md) · [guia visual](docs/USAGE.md) · [arquivos/nuvem](docs/FILES.md) |
+| **Administrador** | [Manual do administrador](docs/ADMIN_MANUAL.md) · [Configuração](docs/CONFIGURATION.md) |
 | **Infraestrutura** | [Deploy](docs/DEPLOYMENT.md) — Rancher, pods, secrets |
 | **Desenvolvimento** | [Arquitetura](docs/ARCHITECTURE.md) e [CI/CD](docs/CI_CD.md) |
 
@@ -23,7 +25,9 @@
 
 ![Mockup SegPortal TJSE](docs/images/segportal-mockup.jpg)
 
-*Telas de login (LDAP+MFA), portal de recursos e sessão clientless no navegador.*
+*Login, portal com navegador HTML padrão, sessão clientless e painel admin de aprovações.*
+
+Preview interativo: [docs/mockup/segportal-preview.html](docs/mockup/segportal-preview.html)
 
 ---
 
@@ -34,11 +38,16 @@
 | Componente | Função | Pod K8s |
 |------------|--------|---------|
 | **Guacamole** | Portal web, autenticação e autorização | `guacamole` (HPA 2–10) |
-| **guacd** | Proxy de protocolos RDP, VNC e SSH | `guacd` (HPA 2–20) |
+| **guacd** | Proxy RDP, VNC e SSH | `guacd` (HPA 2–20) |
 | **PostgreSQL** | Metadados de conexões e sessões | `postgres` (StatefulSet) |
 | **Proxy egress** | Navegação HTTP com IP institucional TJSE | `proxy-egress` (HPA 1–5) |
+| **Web browser** | Firefox via VNC — navegador HTML **padrão** | `web-browser` (HPA 2–10) |
+| **Portal auth** | Dashboard pessoal: AD shares, OneDrive/Google Drive, file manager | `portal-auth` |
+| **Bootstrap** | Conexão padrão + papéis no banco | Job `segportal-bootstrap` |
 
-![Fluxo de autenticação LDAP + MFA](docs/images/auth-flow.jpg)
+![Fluxo de autenticação](docs/images/auth-flow.jpg)
+
+![Pods Kubernetes](docs/images/k8s-pods.jpg)
 
 ---
 
@@ -46,9 +55,11 @@
 
 | Etapa | Imagem | Descrição |
 |-------|--------|-----------|
-| **1. Login** | ![Login](docs/images/usage-login.jpg) | Credenciais do domínio `tjse.jus.br` + código MFA |
-| **2. Portal** | ![Portal](docs/images/usage-portal.jpg) | Recursos liberados pelo grupo AD do usuário |
-| **3. Sessão** | ![Sessão](docs/images/usage-session.jpg) | Desktop remoto no navegador, sem VPN |
+| **1. Login** | ![Login](docs/images/usage-login.jpg) | Credenciais locais ou AD (+ MFA no Guacamole, se habilitado) |
+| **2. Dashboard** | ![Portal](docs/images/usage-portal.jpg) | Pastas AD, OneDrive/Google Drive e atalhos |
+| **3. Arquivos** | ![Arquivos](docs/images/portal-files.jpg) | Gerenciador HTML (upload, pastas, nuvem) |
+| **4. Navegador HTML5** | ![Bacen](docs/images/usage-browser.jpg) | Firefox no portal acessando o site do **Bacen** (`bcb.gov.br`) |
+| **5. Sessão / Admin** | ![Admin](docs/images/portal-admin-home.jpg) | Sessões remotas e visão administrativa |
 
 ---
 
@@ -65,20 +76,29 @@
 git clone https://github.com/avilarezende/segportal.git
 cd segportal
 cp .env.example .env
-# Edite .env com credenciais de homologação (LDAP, PostgreSQL, RADIUS)
-docker compose up -d
+# Edite .env (PostgreSQL; LDAP/RADIUS se for usar)
+docker compose up --build
 ```
 
-Acesse: **http://localhost:8080/guacamole**
+Acesse:
+- **Dashboard pessoal (arquivos AD + nuvem):** http://localhost:8090  
+- **Guacamole (sessões remotas):** http://localhost:8080/guacamole
+
+No primeiro boot o serviço `segportal-bootstrap` cria schema (se preciso), papéis e a conexão **Navegador Web SegPortal** (Firefox via VNC) liberada para todos. Demo sem LDAP:
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+# guacadmin / guacadmin  ·  usuario / usuario
+```
+
+Detalhes: [docs/CONNECTIONS.md](docs/CONNECTIONS.md)
 
 ### Deploy em produção (Kubernetes / Rancher)
 
 ```bash
 # 1. Criar secrets (ver docs/CONFIGURATION.md)
 kubectl apply -k k8s/overlays/production
-
-# 2. Inicializar banco (primeira vez)
-./scripts/init-db.sh
+# Job segportal-bootstrap aplica navegador padrão automaticamente
 ```
 
 ---
@@ -87,13 +107,16 @@ kubectl apply -k k8s/overlays/production
 
 | Item | Arquivo / variável | Detalhes |
 |------|-------------------|----------|
-| LDAP AD | `LDAP_HOSTNAME`, `LDAP_USER_BASE_DN` | [CONFIGURATION.md](docs/CONFIGURATION.md#1-active-directory-ldap) |
-| MFA RADIUS | `MFA_RADIUS_HOST`, `MFA_RADIUS_SECRET` | [CONFIGURATION.md](docs/CONFIGURATION.md#2-mfa-via-radius) |
+| **Papéis admin / usuário** | `config/roles/roles.yaml` | [ROLES.md](docs/ROLES.md) |
+| **Admin local padrão** | `guacadmin` / `guacadmin` | [LOCAL_ADMIN.md](docs/LOCAL_ADMIN.md) |
+| LDAP (opcional) | `LDAP_ENABLED`, `config/ldap/ldap-settings.yaml` | [CONFIGURATION.md](docs/CONFIGURATION.md#3-active-directory-ldap--opcional) |
+| MFA RADIUS | `MFA_RADIUS_HOST`, `MFA_RADIUS_SECRET` | [CONFIGURATION.md](docs/CONFIGURATION.md#4-mfa-via-radius) |
+| Navegador padrão | `web-browser` + bootstrap | [CONNECTIONS.md](docs/CONNECTIONS.md) |
 | Sessões | `SESSION_TIMEOUT_MINUTES` | Timeout e limite de conexões |
 | Proxy egress | `config/proxy/squid.conf` | Whitelist de domínios externos |
 | Secrets K8s | `k8s/*/secret.example.yaml` | Copiar e preencher antes do deploy |
 
-Guia passo a passo completo: **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**
+Guia passo a passo: **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**
 
 ---
 
@@ -101,34 +124,37 @@ Guia passo a passo completo: **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**
 
 ```
 segportal/
-├── config/              # guacamole.properties, LDAP, Squid
+├── config/              # guacamole.properties, LDAP, Squid, papéis
 ├── docs/
 │   ├── images/          # diagramas e mockups (JPG)
-│   ├── MANUAL.md        # manual do usuário
-│   ├── CONFIGURATION.md # guia de configuração
-│   └── ARCHITECTURE.md  # arquitetura técnica
+│   ├── mockup/          # preview HTML interativo
+│   ├── MANUAL.md        # manual usuário + admin
+│   ├── USAGE.md         # guia visual de uso
+│   ├── CONFIGURATION.md # configuração
+│   └── ...
 ├── k8s/                 # manifests Kubernetes modulares
-│   ├── guacamole/       # pod da interface web
-│   ├── guacd/           # pod RDP/VNC/SSH
-│   ├── postgres/        # banco de metadados
-│   ├── proxy-egress/    # proxy de saída
-│   └── overlays/        # dev, staging, production
+│   ├── web-browser/     # Firefox padrão
+│   ├── bootstrap/       # Job de seed automático
+│   └── overlays/
 ├── services/            # Dockerfiles por componente
-├── plugins/             # extensões Guacamole futuras
-└── tests/               # validação automatizada (28 testes)
+├── scripts/             # bootstrap, pedidos, admin local
+└── tests/               # validação automatizada
 ```
 
 ---
 
 ## Segurança
 
-- Autenticação **LDAP + MFA** obrigatória
-- Sessões **individualizadas** por usuário (sem terminal compartilhado)
+- Autenticação **local** sempre disponível (admin `guacadmin` independente do LDAP)
+- LDAP **opcional** — apontamentos configuráveis pelo administrador
+- MFA via RADIUS quando habilitado
+- Navegador HTML padrão com VNC **somente na rede interna**
+- Pedidos de terminal exigem **aprovação do admin**
+- Sessões **individualizadas** por usuário
 - **NetworkPolicies** isolam pods no Kubernetes
 - TLS obrigatório em produção
-- Secrets nunca commitados no repositório
 
-Detalhes: [docs/SECURITY.md](docs/SECURITY.md)
+Detalhes: [docs/SECURITY.md](docs/SECURITY.md) · [docs/LOCAL_ADMIN.md](docs/LOCAL_ADMIN.md)
 
 ---
 
@@ -137,7 +163,10 @@ Detalhes: [docs/SECURITY.md](docs/SECURITY.md)
 | Documento | Conteúdo |
 |-----------|----------|
 | [MANUAL.md](docs/MANUAL.md) | Manual do usuário e administrador |
-| [USAGE.md](docs/USAGE.md) | Fluxo de uso com exemplos visuais |
+| [USAGE.md](docs/USAGE.md) | Fluxo de uso com imagens |
+| [LOCAL_ADMIN.md](docs/LOCAL_ADMIN.md) | Admin padrão, senha, exclusão e LDAP opcional |
+| [ROLES.md](docs/ROLES.md) | Papéis admin e usuário (RBAC) |
+| [CONNECTIONS.md](docs/CONNECTIONS.md) | Navegador padrão e pedidos de terminais |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuração LDAP, MFA, proxy e K8s |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitetura e decisões de design |
 | [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deploy no Rancher |

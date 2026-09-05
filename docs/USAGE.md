@@ -1,6 +1,6 @@
 # Guia de uso — SegPortal TJSE
 
-Fluxo do usuário final com exemplos visuais. Para manual completo, veja [MANUAL.md](MANUAL.md).
+Fluxo visual do usuário final. Manuais completos: [USER_MANUAL.md](USER_MANUAL.md) · [MANUAL.md](MANUAL.md).
 
 ---
 
@@ -8,89 +8,95 @@ Fluxo do usuário final com exemplos visuais. Para manual completo, veja [MANUAL
 
 ![Mockup do portal](images/segportal-mockup.jpg)
 
-1. Usuário autentica no portal (LDAP + MFA)
-2. Visualiza recursos liberados pelo grupo AD
-3. Conecta via RDP, VNC ou SSH no navegador
-4. (Opcional) Acessa sites externos via proxy com IP TJSE
+1. Autenticar no dashboard (`:8090`) — local e/ou Active Directory  
+2. Usar pastas AD e montar OneDrive/Google Drive  
+3. Gerenciar arquivos no explorador HTML  
+4. Abrir sessões remotas (navegador HTML5, RDP, VNC, SSH)  
+5. Se precisar de terminal extra, **solicitar** e aguardar o admin  
 
 ---
 
-## 1. Login no portal
-
-Acesse `https://segportal.tjse.jus.br` e informe:
-
-1. **Usuário** — `sAMAccountName` do domínio `tjse.jus.br`
-2. **Senha** — credencial do Active Directory
-3. **Código MFA** — token do autenticador ou RADIUS corporativo
+## 1. Login
 
 ![Tela de login](images/usage-login.jpg)
 
-Após autenticação, o Guacamole emite token de sessão com timeout de 60 minutos (inatividade).
+| Campo | Produção | Demo local |
+|-------|----------|------------|
+| Usuário | `sAMAccountName` ou local | `usuario` / `guacadmin` |
+| Senha | AD / local | `usuario` / `guacadmin` |
+| Active Directory | Marque se for conta de domínio | Marque para ver shares demo AD |
+| MFA | Se habilitado no Guacamole | Não exigido no compose.dev |
+
+URLs demo: dashboard `http://localhost:8090` · Guacamole `http://localhost:8080/guacamole`.
 
 ---
 
-## 2. Portal de recursos
+## 2. Dashboard pessoal
 
-O usuário vê apenas conexões permitidas pelos **grupos AD**:
+![Dashboard com AD e nuvem](images/usage-portal.jpg)
 
-![Portal de recursos](images/usage-portal.jpg)
+| Área | Uso |
+|------|-----|
+| **Arquivos do Active Directory** | Home, departamental, público |
+| **Nuvem pessoal** | Montar/abrir OneDrive e Google Drive |
+| **Acesso rápido** | Atalhos para arquivos e navegador web |
+| **Abrir Guacamole** | Sessões remotas |
 
-| Tipo | Uso típico |
-|------|------------|
-| **RDP** | Estações Windows, servidores de aplicação |
-| **VNC** | Terminais Linux, consulta processual |
-| **SSH** | Administração de servidores |
-| **Proxy** | Sites externos com IP do tribunal |
+### 2.1 Arquivos corporativos e nuvem
 
----
+![Nuvem montada](images/portal-cloud-mounted.jpg)
 
-## 3. Sessão clientless
+1. Marque AD no login (quando aplicável)  
+2. Em **Nuvem pessoal**, clique em **Montar**  
+3. Em **Arquivos**, navegue, envie (arrastar/soltar), crie pastas  
 
-Ao clicar em **Conectar**, o desktop remoto abre no navegador — sem VPN ou cliente RDP:
+![Gerenciador de arquivos](images/portal-files.jpg)
 
-![Sessão ativa](images/usage-session.jpg)
-
-Cada sessão é **individualizada**: processo guacd dedicado por usuário.
-
----
-
-## 4. Navegação externa (egress)
-
-Tráfego HTTP/HTTPS autorizado passa pelo pod `proxy-egress` e sai com **IP institucional** do TJSE.
-
-![Arquitetura](images/architecture-overview.jpg)
+Detalhes: [FILES.md](FILES.md) · [USER_MANUAL.md](USER_MANUAL.md).
 
 ---
 
-## 5. Fluxo de autenticação
+## 3. Navegador HTML padrão (exemplo: site do Bacen)
 
-![Fluxo LDAP + MFA](images/auth-flow.jpg)
+![Navegador HTML5 no site do Bacen](images/usage-browser.jpg)
 
----
+No boot, `web-browser` sobe e o bootstrap cria a conexão **Navegador Web SegPortal** para todos. O Firefox roda via VNC e é entregue em **HTML5** no Guacamole — sem cliente VPN.
 
-## 6. Encerramento de sessão
+**Exemplo de uso:** abra a sessão **Navegador Web SegPortal** e acesse `https://www.bcb.gov.br/` (Banco Central do Brasil). A navegação sai pelo `proxy-egress` com IP institucional, quando configurado.
 
-- **Logout** manual no menu
-- **Timeout** por inatividade
-- **Limite** de sessões simultâneas por usuário
+![Sessão remota no Bacen](images/usage-session.jpg)
 
 ---
 
-## Diagramas adicionais
+## 4. Pedido de terminal adicional
 
-| Diagrama | Arquivo |
-|----------|---------|
-| Arquitetura completa | [architecture-overview.jpg](images/architecture-overview.jpg) |
-| Fluxo de autenticação | [auth-flow.jpg](images/auth-flow.jpg) |
-| Pods Kubernetes | [k8s-pods.jpg](images/k8s-pods.jpg) |
-| Mockup do portal | [segportal-mockup.jpg](images/segportal-mockup.jpg) |
+```bash
+./scripts/request-connection.sh usuario "RDP Financeiro" rdp 10.10.20.51 3389 "Justificativa"
+./scripts/approve-connection-request.sh 1
+```
 
-## Perfis e grupos AD
+![Visão admin](images/admin-approvals.jpg)
 
-| Grupo AD | Recursos |
-|----------|----------|
-| `GG-SegPortal-Financeiro` | RDP estações financeiro |
-| `GG-SegPortal-Consulta` | VNC terminais processuais |
-| `GG-SegPortal-Admin` | SSH servidores + proxy egress |
+---
 
-Configuração: [CONFIGURATION.md](CONFIGURATION.md)
+## 5. Encerramento
+
+- **Encerrar sessão** na conexão Guacamole  
+- Timeout por inatividade  
+- **Sair** no dashboard  
+
+---
+
+## Imagens
+
+| Arquivo | Conteúdo |
+|---------|----------|
+| [segportal-mockup.jpg](images/segportal-mockup.jpg) | Login / capa |
+| [usage-login.jpg](images/usage-login.jpg) | Login |
+| [usage-portal.jpg](images/usage-portal.jpg) | Dashboard |
+| [portal-files.jpg](images/portal-files.jpg) | Arquivos |
+| [portal-cloud-mounted.jpg](images/portal-cloud-mounted.jpg) | Nuvem |
+| [usage-browser.jpg](images/usage-browser.jpg) | Navegador HTML5 no Bacen |
+| [usage-session.jpg](images/usage-session.jpg) | Sessão remota (mesmo exemplo) |
+| [usage-browser-bacen.jpg](images/usage-browser-bacen.jpg) | Alias do exemplo Bacen |
+| [admin-approvals.jpg](images/admin-approvals.jpg) | Admin |

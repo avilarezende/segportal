@@ -1,18 +1,46 @@
-# portal-auth (futuro)
+# Portal Auth — SegPortal TJSE
 
-Módulo reservado para integrações de autenticação complementares ao Guacamole LDAP/MFA do SegPortal TJSE.
+Serviço FastAPI do **dashboard pessoal**: autenticação (local / Active Directory),
+montagem de pastas corporativas indicadas pelo AD, OneDrive/Google Drive e
+gerenciador de arquivos HTML.
 
-## Escopo planejado
+## URLs
 
-- Validação de claims OIDC/SAML para federação com IdP corporativo
-- Webhook de auditoria pós-login (SIEM)
-- Políticas de sessão por perfil AD
+| Ambiente | URL |
+|----------|-----|
+| Compose local | http://localhost:8090 |
+| Health | `GET /api/health` |
 
-## Estado atual
+## Credenciais demo
 
-A autenticação é realizada nativamente pelo **Guacamole** com a extensão `guacamole-auth-ldap` 1.5.5 e **RADIUS** para MFA. Este diretório documenta a evolução futura; não há serviço implantado nesta versão.
+| Usuário | Senha | Papel |
+|---------|-------|-------|
+| `usuario` | `usuario` | user |
+| `guacadmin` | `guacadmin` | admin |
 
-## Referências
+Marque **Autenticar via Active Directory** no login para simular sessão LDAP e
+expor compartilhamentos AD (home, departamental) no dashboard.
 
-- [CONFIGURATION.md](../../docs/CONFIGURATION.md) — LDAP e MFA
-- [SECURITY.md](../../docs/SECURITY.md) — controles de autenticação
+## OneDrive / Google Drive
+
+No painel **Início**, use **Montar**. Sem `client_id` em `config/files/shares.yaml`,
+a montagem é em **modo demonstração** (pasta local sob `/data/shares/cloud/...`).
+Com OAuth configurado, o portal redireciona ao provedor.
+
+## Arquivos
+
+- Configuração: `config/files/shares.yaml`
+- Atributos AD: `homeDirectory`, `homeDrive`, `profilePath`, `extensionAttribute10`
+- UI: `static/index.html` + `static/assets/`
+
+## Desenvolvimento local (sem Docker)
+
+```bash
+cd services/portal-auth
+pip install -r requirements.txt
+DEMO_SHARES_ROOT=/tmp/segportal-shares uvicorn app.main:app --reload --port 8090
+```
+
+## Compose
+
+O serviço `portal-auth` sobe com a stack em `docker-compose.yml` (porta **8090**).

@@ -27,7 +27,9 @@ jobs:
           cache-dependency-path: requirements-dev.txt
 
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: |
+          pip install -r requirements-dev.txt
+          pip install -r services/portal-auth/requirements.txt
 
       - name: Ruff lint
         run: ruff check tests/
@@ -60,10 +62,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service:
-          - guacamole
-          - guacd
-          - egress-proxy
+        include:
+          - service: guacamole
+            context: .
+            file: services/guacamole/Dockerfile
+          - service: guacd
+            context: services/guacd
+            file: services/guacd/Dockerfile
+          - service: egress-proxy
+            context: .
+            file: services/egress-proxy/Dockerfile
+          - service: web-browser
+            context: services/web-browser
+            file: services/web-browser/Dockerfile
+          - service: portal-auth
+            context: .
+            file: services/portal-auth/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -73,8 +87,8 @@ jobs:
       - name: Build ${{ matrix.service }}
         uses: docker/build-push-action@v6
         with:
-          context: .
-          file: services/${{ matrix.service == 'egress-proxy' && 'egress-proxy' || matrix.service }}/Dockerfile
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
           push: false
           load: true
           tags: ${{ env.REGISTRY }}/${{ matrix.service }}:ci
@@ -92,3 +106,8 @@ jobs:
           LDAP_SEARCH_BIND_DN: CN=svc-segportal,OU=Servicos,DC=tjse,DC=jus,DC=br
           LDAP_SEARCH_BIND_PASSWORD: ci_test
         run: docker compose config --quiet
+
+      - name: Validate docker-compose.dev
+        env:
+          POSTGRES_PASSWORD: ci_test_password
+        run: docker compose -f docker-compose.dev.yml config --quiet
