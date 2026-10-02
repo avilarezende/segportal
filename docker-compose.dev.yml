@@ -37,8 +37,9 @@ services:
       DISPLAY_WIDTH: "1280"
       DISPLAY_HEIGHT: "800"
       VNC_PORT: "5900"
-      # Deve coincidir com SEGPORTAL_VNC_PASSWORD usado pelo bootstrap no SQL 004
-      VNC_PASSWORD: ${VNC_PASSWORD:?Defina VNC_PASSWORD e SEGPORTAL_VNC_PASSWORD no ambiente}
+      # Demo local: senha VNC com default (x11vnc trunca em 8 chars). Deve
+      # coincidir com SEGPORTAL_VNC_PASSWORD do bootstrap (SQL 004).
+      VNC_PASSWORD: ${VNC_PASSWORD:-segporta}
       FF_OPEN_URL: https://example.com
     expose:
       - "5900"
@@ -61,6 +62,9 @@ services:
       POSTGRES_PASSWORD: devpassword
       SEGPORTAL_BOOTSTRAP_WAIT_SECONDS: "300"
       GUACAMOLE_VERSION: "1.5.5"
+      # Demo local: admin guacadmin/guacadmin e senha VNC alinhada ao web-browser.
+      GUACAMOLE_ADMIN_PASSWORD: ${GUACAMOLE_ADMIN_PASSWORD:-guacadmin}
+      SEGPORTAL_VNC_PASSWORD: ${VNC_PASSWORD:-segporta}
     volumes:
       - ./scripts:/scripts:ro
     entrypoint: ["/bin/sh", "/scripts/bootstrap-segportal.sh"]
