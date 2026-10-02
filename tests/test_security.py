@@ -83,6 +83,29 @@ class TestPathTraversal:
         assert exc.value.status_code == 400
 
 
+class TestCsrf:
+    def test_write_without_token_is_rejected(self) -> None:
+        r = client.post("/api/files/home/mkdir", json={"path": "", "name": "x"})
+        assert r.status_code == 403
+
+    def test_write_with_matching_token_passes_csrf(self) -> None:
+        client.get("/")  # define o cookie segportal_csrf
+        token = client.cookies.get("segportal_csrf")
+        assert token
+        # CSRF válido: passa da checagem e só então exige sessão (401), não 403.
+        r = client.post(
+            "/api/files/home/mkdir",
+            json={"path": "", "name": "x"},
+            headers={"X-CSRF-Token": token},
+        )
+        assert r.status_code == 401
+
+    def test_home_sets_csrf_cookie(self) -> None:
+        fresh = TestClient(app)
+        fresh.get("/")
+        assert fresh.cookies.get("segportal_csrf")
+
+
 class TestLdapFailClosed:
     def test_empty_password_rejected_before_network(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Senha vazia deve ser recusada (evita unauthenticated bind do AD)."""

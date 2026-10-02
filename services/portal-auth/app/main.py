@@ -18,6 +18,7 @@ from .auth import (
 from .catalog import catalogo_para_usuario, item_autorizado
 from .cloud_drives import mount_demo, start_oauth, unmount, user_cloud_state
 from .config import settings
+from .csrf import issue_csrf, require_csrf
 from .files import delete, list_dir, mkdir, open_file_path, rename, upload_file
 from .ldap_shares import ensure_demo_tree, list_user_shares
 from .mfa import totp_enabled_for, verify_totp
@@ -96,8 +97,10 @@ app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="as
 app.mount("/browser", StaticFiles(directory=str(STATIC_DIR / "browser")), name="browser")
 
 @app.get("/", response_class=HTMLResponse)
-def home() -> FileResponse:
-    return FileResponse(STATIC_DIR / "index.html")
+def home(request: Request) -> FileResponse:
+    response = FileResponse(STATIC_DIR / "index.html")
+    issue_csrf(response, request)
+    return response
 
 
 @app.get("/api/health")
@@ -140,6 +143,7 @@ async def login(request: Request) -> JSONResponse:
     }
     response = JSONResponse(payload)
     set_session_cookie(response, user)
+    issue_csrf(response, request)
     return response
 
 
@@ -214,12 +218,14 @@ async def api_upload(
     path: str = Form(""),
     file: UploadFile = File(...),
 ) -> dict:
+    require_csrf(request)
     return await upload_file(current_user(request), share_id, path, file)
 
 
 @app.post("/api/files/{share_id}/mkdir")
 @limiter.limit(API_WRITE_LIMIT)
 async def api_mkdir(share_id: str, request: Request) -> dict:
+    require_csrf(request)
     body = await request.json()
     path = body.get("path", "")
     name = body.get("name", "Nova pasta")
@@ -229,6 +235,7 @@ async def api_mkdir(share_id: str, request: Request) -> dict:
 @app.post("/api/files/{share_id}/rename")
 @limiter.limit(API_WRITE_LIMIT)
 async def api_rename(share_id: str, request: Request) -> dict:
+    require_csrf(request)
     body = await request.json()
     return rename(current_user(request), share_id, body["path"], body["new_name"])
 
@@ -236,6 +243,7 @@ async def api_rename(share_id: str, request: Request) -> dict:
 @app.delete("/api/files/{share_id}")
 @limiter.limit(API_WRITE_LIMIT)
 def api_delete(share_id: str, request: Request, path: str) -> dict:
+    require_csrf(request)
     return delete(current_user(request), share_id, path)
 
 
@@ -253,6 +261,7 @@ def api_cloud(request: Request) -> dict:
 @app.post("/api/cloud/{provider}/mount")
 @limiter.limit(API_WRITE_LIMIT)
 async def api_cloud_mount(provider: str, request: Request) -> dict:
+    require_csrf(request)
     user = current_user(request)
     try:
         oauth = start_oauth(user, provider, str(request.base_url).rstrip("/"))
@@ -265,6 +274,7 @@ async def api_cloud_mount(provider: str, request: Request) -> dict:
 
 @app.post("/api/cloud/{provider}/unmount")
 def api_cloud_unmount(provider: str, request: Request) -> dict:
+    require_csrf(request)
     return {"drives": unmount(current_user(request), provider)}
 
 

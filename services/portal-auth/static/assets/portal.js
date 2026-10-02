@@ -37,8 +37,19 @@ function toast(msg) {
   }, 3200);
 }
 
+function getCookie(name) {
+  const prefix = `${name}=`;
+  const found = document.cookie.split("; ").find((c) => c.startsWith(prefix));
+  return found ? decodeURIComponent(found.slice(prefix.length)) : "";
+}
+
 async function api(path, options = {}) {
   const opts = { credentials: "same-origin", ...options };
+  // CSRF: reenvia o token do cookie no cabeçalho em requisições de escrita.
+  const method = (opts.method || "GET").toUpperCase();
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    opts.headers = { "X-CSRF-Token": getCookie("segportal_csrf"), ...(opts.headers || {}) };
+  }
   if (opts.body && !(opts.body instanceof FormData) && typeof opts.body === "object") {
     opts.headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
     opts.body = JSON.stringify(opts.body);
