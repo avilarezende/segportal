@@ -10,13 +10,24 @@ USER root
 ARG GUACAMOLE_VERSION=1.5.5
 ARG LDAP_EXTENSION_VERSION=1.5.5
 ARG GUACAMOLE_BINARY_BASE=https://dlcdn.apache.org/guacamole
-RUN mkdir -p /etc/guacamole/extensions /tmp/guac-ext \
+
+# gettext-base provides envsubst, used by entrypoint.sh to render guacamole.properties
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gettext-base \
+    && rm -rf /var/lib/apt/lists/*
+
+# The guacamole/guacamole base image already bundles the LDAP auth extension
+# (/opt/guacamole/ldap/guacamole-auth-ldap-${LDAP_EXTENSION_VERSION}.jar) and
+# auto-enables it at runtime whenever LDAP_* variables are set. Installing the
+# jar again into GUACAMOLE_HOME/extensions makes start.sh try to link two copies
+# under the same name ("File exists" -> crash loop), so we only pin/verify that
+# the released extension archive matches the version we build against.
+RUN mkdir -p /tmp/guac-ext \
     && curl -fsSL \
       "${GUACAMOLE_BINARY_BASE}/${GUACAMOLE_VERSION}/binary/guacamole-auth-ldap-${LDAP_EXTENSION_VERSION}.tar.gz" \
       -o /tmp/guac-ext/ldap.tar.gz \
-    && tar -xzf /tmp/guac-ext/ldap.tar.gz -C /tmp/guac-ext \
-    && cp "/tmp/guac-ext/guacamole-auth-ldap-${LDAP_EXTENSION_VERSION}/guacamole-auth-ldap-${LDAP_EXTENSION_VERSION}.jar" \
-      "/etc/guacamole/extensions/guacamole-auth-ldap-${LDAP_EXTENSION_VERSION}.jar" \
+    && tar -tzf /tmp/guac-ext/ldap.tar.gz \
+      | grep -q "guacamole-auth-ldap-${LDAP_EXTENSION_VERSION}.jar" \
     && rm -rf /tmp/guac-ext
 
 # TJSE branding and configuration
