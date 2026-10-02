@@ -39,12 +39,58 @@ from slowapi.errors import RateLimitExceeded  # noqa: E402
 
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
-    headers = {"Retry-After": str(int(exc.retry_after))} if exc.retry_after else None
+    # retry_after não existe em todas as versões do slowapi; usar getattr evita
+    # que o handler quebre (500) e mascare a proteção anti-força-bruta (429).
+    retry_after = getattr(exc, "retry_after", None)
+    headers = {"Retry-After": str(int(retry_after))} if retry_after else None
     return JSONResponse(
         status_code=429,
         content={"detail": "Muitas requisições. Tente novamente mais tarde."},
         headers=headers,
     )
+
+# Content-Security-Policy: bloqueia scripts inline (defesa XSS), restringe
+# origens e impede clickjacking. 'unsafe-inline' fica só em style-src (fontes
+# Google + estilos do tema); frame-src https: permite o navegador incorporado.
+_CSP = (
+    "default-src 'self'; "
+    "base-uri 'self'; "
+    "object-src 'none'; "
+    "frame-ancestors 'none'; "
+    "form-action 'self'; "
+    "img-src 'self' data: blob:; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com data:; "
+    "connect-src 'self'; "
+    "frame-src 'self' https:; "
+    "child-src 'self' https:"
+)
+
+_SECURITY_HEADERS = {
+    "Content-Security-Policy": _CSP,
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "X-Permitted-Cross-Domain-Policies": "none",
+}
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    for header, value in _SECURITY_HEADERS.items():
+        response.headers.setdefault(header, value)
+    # HSTS apenas sob HTTPS (atrás do ingress/TLS) para não afetar dev em HTTP.
+    proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+    if proto == "https":
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+    return response
+
 
 app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 app.mount("/browser", StaticFiles(directory=str(STATIC_DIR / "browser")), name="browser")

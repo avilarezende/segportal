@@ -13,7 +13,13 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 COPY config /app/config
 COPY services/portal-auth /app/services/portal-auth
 
+# Executa como usuário não-root (OWASP: menor privilégio em contêineres).
+RUN useradd --system --uid 10001 --home-dir /app --shell /usr/sbin/nologin portal \
+    && mkdir -p /data/shares \
+    && chown -R portal:portal /data/shares /app
+
 WORKDIR /app/services/portal-auth
+USER portal
 EXPOSE 8090
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8090"]
