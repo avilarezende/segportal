@@ -22,12 +22,14 @@ Fluxo visual do usuário final. Manuais completos: [USER_MANUAL.md](USER_MANUAL.
 
 ![Tela de login](images/usage-login.jpg)
 
-| Campo | Produção | Demo local |
-|-------|----------|------------|
-| Usuário | `sAMAccountName` ou local | `usuario` / `admin` |
-| Senha | AD / local | `usuario` / `admin` |
-| Active Directory | Marque se for conta de domínio | Marque para ver shares demo AD |
-| MFA | Se habilitado no SegPortal | Não exigido no compose.dev |
+| Campo | Produção | Local (dev) |
+|-------|----------|-------------|
+| Usuário | `sAMAccountName` ou local | definido por `SEGPORTAL_LOCAL_USERS` |
+| Senha | AD / local | valor correspondente em `SEGPORTAL_LOCAL_PASSWORDS` |
+| Active Directory | Marque se for conta de domínio | Marque para tentar bind LDAP (fail-closed → 401 sem AD) |
+| MFA TOTP | Se ativo via `SEGPORTAL_TOTP_SECRETS` | Idem (segundo passo: código de 6 dígitos) |
+
+> Não há senhas demo no código: sem `SEGPORTAL_LOCAL_USERS`/`SEGPORTAL_LOCAL_PASSWORDS` não há usuários locais. Para LDAP, o login só passa com **bind válido** (LDAP real).
 
 URLs demo: dashboard `http://localhost:8090` · SegPortal `http://localhost:8090`.
 

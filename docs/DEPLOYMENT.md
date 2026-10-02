@@ -8,19 +8,25 @@ Guia de implantação em Docker Compose (dev) e Kubernetes/Rancher (produção).
 git clone https://github.com/avilarezende/segportal.git
 cd segportal
 cp .env.example .env
-# Configure POSTGRES_PASSWORD (LDAP/MFA opcionais)
+# Obrigatório: POSTGRES_PASSWORD, PORTAL_SESSION_SECRET,
+# SEGPORTAL_LOCAL_USERS + SEGPORTAL_LOCAL_PASSWORDS,
+# GUACAMOLE_ADMIN_PASSWORD, VNC_PASSWORD/SEGPORTAL_VNC_PASSWORD
+# (LDAP/MFA TOTP opcionais)
 docker compose up --build
 ```
 
+> O portal **não inicia** sem `PORTAL_SESSION_SECRET`. Sem `SEGPORTAL_LOCAL_USERS`/`SEGPORTAL_LOCAL_PASSWORDS` não há usuários locais.
+
 Acesse: http://localhost:8090
 
-O serviço **`segportal-bootstrap`** aplica schema (se necessário), papéis e a conexão **Navegador Web SegPortal** automaticamente. O serviço **`web-browser`** (Firefox/VNC) sobe junto ao stack.
+O serviço **`segportal-bootstrap`** aplica schema (se necessário), papéis, o admin (`GUACAMOLE_ADMIN_PASSWORD`), a conexão **Navegador Web SegPortal** (com `SEGPORTAL_VNC_PASSWORD`) e os usuários locais automaticamente. O serviço **`web-browser`** (Firefox/VNC) sobe junto ao stack.
 
-Demo sem LDAP:
+Ambiente local **sem LDAP** — defina usuários antes de subir (não há credenciais demo no código):
 
 ```bash
+SEGPORTAL_LOCAL_USERS="admin:Administrador:admin:admin@aqne.jus.br;usuario:Usuário Padrão:user:usuario@aqne.jus.br"
+SEGPORTAL_LOCAL_PASSWORDS="<senha_forte_admin>;<senha_forte_usuario>"
 docker compose -f docker-compose.dev.yml up --build
-# admin / admin  ·  usuario / usuario
 ```
 
 Reaplicar bootstrap (idempotente):
@@ -44,6 +50,17 @@ kubectl create namespace segportal
 kubectl apply -f k8s/postgres/secret.example.yaml -n segportal  # substitua valores
 kubectl apply -f k8s/secret.example.yaml -n segportal
 ```
+
+**Secrets obrigatórios/importantes** (sempre via Secret, nunca ConfigMap):
+
+| Secret | Motivo |
+|--------|--------|
+| `POSTGRES_PASSWORD` | Banco de sessões |
+| `PORTAL_SESSION_SECRET` | Cookie de sessão — **sem ela o portal não inicia** |
+| `SEGPORTAL_LOCAL_USERS` / `SEGPORTAL_LOCAL_PASSWORDS` | Usuários locais (sem elas não há usuários locais) |
+| `GUACAMOLE_ADMIN_PASSWORD` | Admin criado pelo bootstrap (obrigatória) |
+| `VNC_PASSWORD` / `SEGPORTAL_VNC_PASSWORD` | Senha VNC do navegador padrão (**mesmo valor**) |
+| `SEGPORTAL_TOTP_SECRETS` | 2FA TOTP por usuário (JSON `base32`) |
 
 ### Overlays
 
@@ -75,7 +92,7 @@ kubectl -n segportal logs job/segportal-bootstrap
 
 | Pipeline | Trigger | Ação |
 |----------|---------|------|
-| `ci.yml` | PR / push | Testes, lint, build Docker, validate K8s |
+| `ci.yml` | PR / push | Testes, lint, **security-scan (gitleaks+bandit)**, **compose-config (variáveis dummy)**, build Docker, validate K8s |
 | `cd.yml` | Tag `v*.*.*` | Push imagens + deploy produção |
 
 Detalhes: [CI_CD.md](CI_CD.md)

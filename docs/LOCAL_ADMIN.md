@@ -1,38 +1,62 @@
-# Admin padrão e usuários locais — SegPortal AQNE
+# Usuários locais e administrador — SegPortal AQNE
 
 Manual operacional completo: **[ADMIN_MANUAL.md](ADMIN_MANUAL.md)**.  
 Manual do usuário final: [USER_MANUAL.md](USER_MANUAL.md).
 
-O SegPortal **sempre** possui autenticação local (PostgreSQL / JDBC), independente do LDAP. O administrador padrão é criado na inicialização do banco e permanece válido com LDAP ligado ou desligado.
+O SegPortal possui autenticação **local** (PostgreSQL / JDBC) e/ou **LDAP**. Usuários locais **não são mais criados com senhas embutidas no código**: eles vêm das variáveis `SEGPORTAL_LOCAL_USERS` e `SEGPORTAL_LOCAL_PASSWORDS`. **Sem essas variáveis não há usuários locais** — as antigas contas demo `admin`/`admin` e `usuario`/`usuario` foram removidas do código.
 
-O **portal-auth** (`:8090`) também autentica `admin` / `usuario` em modo demo para o dashboard de arquivos.
+O **portal-auth** (`:8090`) usa as **mesmas variáveis** para autenticar o dashboard de arquivos.
 
 ---
 
-## Admin padrão
+## Usuários locais (provisionamento via ENV)
+
+### Variáveis
+
+| Variável | Formato | Obrigatória? |
+|----------|---------|:-------------:|
+| `SEGPORTAL_LOCAL_USERS` | `login:Nome de exibição:Papel:email;...` (vários separados por `;`) | Sim, para haver usuários locais |
+| `SEGPORTAL_LOCAL_PASSWORDS` | Senhas na **mesma ordem** dos usuários, separadas por `;` | Sim, para haver usuários locais |
+
+- **Papel**: `admin` ou `user` (mapeamento em [ROLES.md](ROLES.md)).
+- **Email**: usado para identificação/contato do usuário no portal.
+- As senhas devem ser fortes e provisionadas via **Secret** (Kubernetes) ou `.env` **fora** do repositório — nunca em claro no código.
+
+Exemplo:
+
+```bash
+SEGPORTAL_LOCAL_USERS="admin:Administrador:admin:admin@aqne.jus.br;usuario:Usuário Padrão:user:usuario@aqne.jus.br"
+SEGPORTAL_LOCAL_PASSWORDS="<senha_forte_admin>;<senha_forte_usuario>"
+```
+
+> **Sem `SEGPORTAL_LOCAL_USERS` / `SEGPORTAL_LOCAL_PASSWORDS` o portal não tem usuários locais** e só aceita login se o LDAP estiver habilitado.
+
+Os usuários são sincronizados/criados no banco de sessões pelo entrypoint (`bootstrap`) a partir dessas variáveis. Alterou as variáveis? Reaplique o bootstrap:
+
+```bash
+./scripts/bootstrap-segportal.sh   # idempotente
+```
+
+### Admin criado pelo bootstrap (`GUACAMOLE_ADMIN_PASSWORD`)
+
+O usuário administrador inicial é criado pelo job **`segportal-bootstrap`** com a senha da variável `GUACAMOLE_ADMIN_PASSWORD` (**obrigatória** — o bootstrap não roda sem ela). Após o boot, você pode seguir a gestão normal de usuários locais:
 
 | Campo | Valor inicial |
 |-------|----------------|
-| Usuário | `admin` |
-| Senha | `admin` |
-| Origem | Schema oficial SegPortal (`002-create-admin-user.sql`) |
+| Usuário | o que estiver em `SEGPORTAL_LOCAL_USERS` (ex.: `admin`) |
+| Senha | `GUACAMOLE_ADMIN_PASSWORD` |
+| Origem | Job `segportal-bootstrap` (ENV/Secret) |
 | Depende de LDAP? | **Não** |
 
-> **Obrigatório em produção:** altere a senha no primeiro acesso (ou via script abaixo) e restrinja quem conhece essa conta.
-
-### Por que existe
-
-- Bootstrap do portal sem AD disponível
-- Conta de emergência se o LDAP/RADIUS falhar (`skip-if-unavailable: ldap`)
-- Gestão de usuários locais e de apontamentos LDAP
+> **Obrigatório em produção:** use senhas fortes e diferentes para cada ambiente; jamais deixe valores em claro no repositório.
 
 ---
 
-## Alterar a senha do admin padrão
+## Alterar a senha de um usuário local
 
 ### Opção A — Interface SegPortal
 
-1. Login como `admin`
+1. Login como administrador
 2. Menu do usuário → **Settings → Preferences** (ou perfil)
 3. Defina a nova senha
 4. Faça logout e valide o novo login
@@ -59,9 +83,9 @@ Com token de sessão admin, `PUT /api/session/data/{dataSource}/users/admin/pass
 
 ---
 
-## Desativar ou excluir o admin padrão
+## Desativar ou excluir um usuário local
 
-> Só faça isso **depois** de criar outro administrador local ou garantir admins via LDAP (`GG-SegPortal-Admin`).
+> Só faça isso **depois** de garantir outro administrador local (via `SEGPORTAL_LOCAL_USERS`/`SEGPORTAL_LOCAL_PASSWORDS`) ou admins via LDAP (`GG-SegPortal-Admin`).
 
 ### Desativar (recomendado)
 
@@ -96,14 +120,12 @@ WHERE u.entity_id = e.entity_id AND e.name = 'admin';
 
 ## Usuários locais (sem LDAP)
 
-Com `LDAP_ENABLED=false` (padrão até o admin configurar o AD):
+Com `LDAP_ENABLED=false` (padrão até o admin configurar o AD), a autenticação é **somente local**, e os usuários vêm das variáveis `SEGPORTAL_LOCAL_USERS` / `SEGPORTAL_LOCAL_PASSWORDS`:
 
-1. Login como `admin`
-2. **Settings → Users → New User**
-3. Defina usuário, senha e permissões
-4. Associe a grupos (`segportal-users`, `segportal-financeiro`, etc.) via `./scripts/seed-roles.sh` ou o bootstrap automático
-
-O usuário demo `usuario` / `usuario` é criado pelo seed de papéis (opcional).
+1. Defina as variáveis no `.env`/Secret **antes** do primeiro boot (não há contas demo no código)
+2. O `segportal-bootstrap` cria/sincroniza os usuários e a senha do admin (`GUACAMOLE_ADMIN_PASSWORD`)
+3. Associe a grupos de negócio (`segportal-financeiro`, etc.) conforme [ROLES.md](ROLES.md)
+4. Para contas adicionais, você também pode usar **Settings → Users → New User** na UI SegPortal após o login como admin
 
 ---
 
@@ -130,10 +152,12 @@ Arquivo de referência: `config/ldap/ldap-settings.yaml`
 1. Preencha `config/ldap/ldap-settings.yaml` (ou Secret/ConfigMap no Rancher)
 2. Monte a cadeia CA em `/etc/certs/ldap-ca-chain.pem`
 3. Defina `LDAP_ENABLED=true` e demais variáveis
-4. Reinicie o deployment `sessions`
-5. Teste login com conta AD **sem** remover o `admin`
+4. Reinicie o deployment `sessions` / portal
+5. Teste login com conta AD
 
-Se LDAP não for configurado (`LDAP_ENABLED=false`), o entrypoint remove todas as chaves `ldap-*` e o portal opera **somente com usuários locais**.
+> **Comportamento (LDAP real via `ldap3`):** com LDAP habilitado, o login faz bind LDAP de verdade usando `LDAP_HOSTNAME`, `LDAP_PORT`, `LDAP_USER_BASE_DN` e `LDAP_USERNAME_ATTRIBUTE`, e resolve os grupos de papel em `role_groups`. **Fail-closed**: sem bind válido (credencial errada, servidor indisponível, grupo sem papel mapeado) → **`401`**. Nesse modo, usuários **locais não autenticam** — a conta local só é aceita com `LDAP_ENABLED=false`.
+
+Se LDAP não for configurado (`LDAP_ENABLED=false`), o entrypoint remove todas as chaves `ldap-*` e o portal opera **somente com usuários locais** (via `SEGPORTAL_LOCAL_USERS`/`SEGPORTAL_LOCAL_PASSWORDS`).
 
 Detalhes técnicos: [CONFIGURATION.md](CONFIGURATION.md).
 
@@ -142,9 +166,10 @@ Detalhes técnicos: [CONFIGURATION.md](CONFIGURATION.md).
 ## Relação LDAP × usuários locais
 
 ```
-LDAP_ENABLED=false  →  só JDBC (admin + usuários locais)
-LDAP_ENABLED=true   →  LDAP + JDBC (admin continua válido)
-LDAP fora do ar     →  skip-if-unavailable: ldap → login local permanece
+LDAP_ENABLED=false  →  só local (usuários de SEGPORTAL_LOCAL_USERS / SEGPORTAL_LOCAL_PASSWORDS)
+LDAP_ENABLED=true   →  somente LDAP real (bind via ldap3) — sem bind válido → 401
+                        — usuários locais NÃO autenticam nesse modo
+LDAP fora do ar     →  fail-closed → 401 (exceto se LDAP for desligado via ENV)
 ```
 
 ---

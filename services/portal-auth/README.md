@@ -11,15 +11,18 @@ gerenciador de arquivos HTML.
 | Compose local | http://localhost:8090 |
 | Health | `GET /api/health` |
 
-## Credenciais demo
+## Usuários locais (via ENV)
 
-| Usuário | Senha | Papel |
-|---------|-------|-------|
-| `usuario` | `usuario` | user |
-| `admin` | `admin` | admin |
+Não há mais credenciais demo (`admin`/`admin`, `usuario`/`usuario`) no código. Os usuários locais vêm de `SEGPORTAL_LOCAL_USERS` (`login:Nome:Papel:email;...`) e `SEGPORTAL_LOCAL_PASSWORDS` (senhas na mesma ordem):
 
-Marque **Autenticar via Active Directory** no login para simular sessão LDAP e
-expor compartilhamentos AD (home, departamental) no dashboard.
+```bash
+SEGPORTAL_LOCAL_USERS="admin:Administrador:admin:admin@aqne.jus.br;usuario:Usuário Padrão:user:usuario@aqne.jus.br"
+SEGPORTAL_LOCAL_PASSWORDS="<senha_forte_admin>;<senha_forte_usuario>"
+```
+
+Sem essas variáveis **não há usuários locais**. MFA TOTP: `SEGPORTAL_TOTP_SECRETS` (JSON por usuário) — login em 2 etapas (`mfa_required` + código de 6 dígitos). Rate limiting (`SEGPORTAL_RATE_LIMIT_ENABLED`): login 5/min e escrita 30/min.
+
+Marque **Autenticar via Active Directory** no login para usar LDAP real (`ldap3`, fail-closed: sem bind válido → `401`).
 
 ## OneDrive / Google Drive
 
@@ -38,6 +41,9 @@ Com OAuth configurado, o portal redireciona ao provedor.
 ```bash
 cd services/portal-auth
 pip install -r requirements.txt
+export PORTAL_SESSION_SECRET=$(openssl rand -hex 32)   # obrigatória — sem ela o portal não inicia
+export SEGPORTAL_LOCAL_USERS="admin:Administrador:admin:admin@aqne.jus.br"
+export SEGPORTAL_LOCAL_PASSWORDS="<senha_forte>"
 DEMO_SHARES_ROOT=/tmp/segportal-shares uvicorn app.main:app --reload --port 8090
 ```
 

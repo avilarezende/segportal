@@ -21,10 +21,12 @@ SegPortal implementa **ZTNA (Zero Trust Network Access)** para o AQNE com portal
 ![Fluxo LDAP + MFA](images/auth-flow.jpg)
 
 1. Usuário acessa o **portal-auth** (`:8090`) e/ou o SegPortal
-2. Autentica via **conta local** e/ou **LDAP/AD** (`aqne.jus.br`), conforme configuração
+2. Autentica via **conta local** (usuários de `SEGPORTAL_LOCAL_USERS`/`SEGPORTAL_LOCAL_PASSWORDS`) e/ou **LDAP/AD** (`aqne.jus.br`, bind real via `ldap3` quando `LDAP_ENABLED=true`)
 3. No dashboard, recebe pastas AD e opção de montar OneDrive/Google Drive
-4. MFA via **RADIUS** no SegPortal se `MFA_ENABLED=true`
+4. MFA: **TOTP** por usuário (`SEGPORTAL_TOTP_SECRETS`, login em 2 etapas) e/ou **RADIUS** (`MFA_ENABLED=true`)
 5. Sessões remotas: no mínimo o **Navegador Web SegPortal**
+
+> **LDAP fail-closed**: com LDAP habilitado, sem bind válido → `401`; usuários locais só autenticam com LDAP desligado. A sessão do portal exige `PORTAL_SESSION_SECRET` (o portal não inicia sem ela).
 
 ## Deploy Kubernetes
 
@@ -66,7 +68,11 @@ segportal/
 | Decisão | Motivo |
 |---------|--------|
 | portal-auth separado | UI de arquivos/AD/nuvem sem acoplar ao SegPortal Java |
-| SegPortal 1.5.5 | Base estável com JDBC + LDAP oficiais |
+| Usuários locais via ENV | Remove senhas demo do código; provisionamento por Secret/ambiente |
+| LDAP real via ldap3 (fail-closed) | Sem bind válido → 401; nada de fallback silencioso para contas locais |
+| MFA TOTP nativo | 2FA por usuário sem infra adicional (além do autenticador) |
+| Rate limiting (slowapi) | Mitiga brute force em login e escrita da API |
+| Catálogo de computadores server-side | Frontend sem catálogo hardcoded; `/api/computers/{id}/authorize` valida no servidor |
 | Navegador padrão no boot | Todo usuário navega sem VPN desde o primeiro login |
 | Bootstrap automático | Elimina seed manual e drift de configuração |
 | Pedidos com aprovação | Usuário não cria conexões sozinho |
@@ -80,6 +86,4 @@ segportal/
 - [FILES.md](FILES.md) · [CONNECTIONS.md](CONNECTIONS.md)
 - [ROLES.md](ROLES.md) · [CONFIGURATION.md](CONFIGURATION.md)
 - [DEPLOYMENT.md](DEPLOYMENT.md) · [SECURITY.md](SECURITY.md)
-- [CI_CD.md](CI_CD.md)- [CONFIGURATION.md](CONFIGURATION.md)
-- [DEPLOYMENT.md](DEPLOYMENT.md)
-- [SECURITY.md](SECURITY.md)
+- [CI_CD.md](CI_CD.md)

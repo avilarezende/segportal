@@ -8,6 +8,8 @@ Pipelines GitHub Actions para integração e entrega contínua.
 flowchart LR
     PR[Pull Request] --> CI[ci.yml]
     CI --> T[pytest]
+    CI --> S[security-scan]
+    CI --> C[compose-config]
     CI --> K[k8s validate]
     CI --> D[docker build]
     develop --> CDstg[cd.yml staging]
@@ -24,9 +26,10 @@ flowchart LR
 | Job | Descrição |
 |-----|-----------|
 | `lint-and-test` | Ruff + pytest (inclui portal-auth) |
+| `security-scan` | **gitleaks** (vazamento de segredos) + **bandit** (análise estática Python) |
 | `validate-k8s` | `kubectl kustomize` + kubeconform |
 | `docker-build` | Build sessions, guacd, egress-proxy, web-browser, **portal-auth** (sem push) |
-| `compose-config` | Valida `docker-compose.yml` e `docker-compose.dev.yml` |
+| `compose-config` | Valida `docker-compose.yml` e `docker-compose.dev.yml` com **variáveis dummy** (nenhum segredo real entra no CI) |
 
 No monorepo `conversador-pop-se`, o workflow espelho é `.github/workflows/segportal-ci.yml` (GitHub só executa workflows na raiz do repositório).
 
@@ -81,8 +84,10 @@ Equivalente ao CI:
 pip install -r requirements-dev.txt
 ruff check tests/
 pytest -v
+gitleaks detect --source . -v          # mesmo job security-scan
+bandit -r services/portal-auth -q
 ./scripts/validate-k8s.sh
-docker compose config
+docker compose config                  # use variáveis dummy no .env
 ```
 
 ## Rancher Fleet

@@ -38,8 +38,8 @@ Fonte: `config/roles/roles.yaml`.
 
 | Ambiente | Login | Observação |
 |----------|-------|------------|
-| Qualquer (local) | `admin` / `admin` | **Independente do LDAP** — alterar senha no 1º acesso |
-| Produção (LDAP) | Conta AD em `GG-SegPortal-Admin` | MFA se habilitado |
+| Local (sem LDAP) | Usuário com papel `admin` em `SEGPORTAL_LOCAL_USERS` | Provisionado por ENV — sem as variáveis não há usuários locais |
+| Produção (LDAP) | Conta AD em `GG-SegPortal-Admin` | LDAP real (fail-closed); MFA TOTP se habilitado |
 
 Ver [LOCAL_ADMIN.md](LOCAL_ADMIN.md).
 
@@ -66,8 +66,8 @@ Ver [LOCAL_ADMIN.md](LOCAL_ADMIN.md).
 
 | Ambiente | Login | Observação |
 |----------|-------|------------|
-| Produção (LDAP) | Conta em `GG-SegPortal-Usuarios` + grupo de negócio | MFA se habilitado |
-| Demo local | `usuario` / `usuario` | Após bootstrap |
+| Produção (LDAP) | Conta em `GG-SegPortal-Usuarios` + grupo de negócio | LDAP real (fail-closed); MFA TOTP se habilitado |
+| Local (sem LDAP) | Usuário com papel `user` em `SEGPORTAL_LOCAL_USERS` | Provisionado por ENV |
 
 ---
 

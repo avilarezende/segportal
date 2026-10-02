@@ -39,16 +39,12 @@ O SegPortal permite acessar sistemas do AQNE e sites (internos e externos) **pel
 1. Acesse **http://localhost:8090** (demo) ou a URL institucional.
 2. Informe usuário/senha.
 3. Marque **Active Directory** quando for conta de domínio (monta pastas liberadas).
-4. Clique em **Entrar no portal**.
+4. **2FA (se ativo):** o portal responde `mfa_required` e você informa o **código de 6 dígitos** do autenticador.
+5. Clique em **Entrar no portal**.
 
 ![Tela de login](images/usage-login.jpg)
 
-**Demo local**
-
-| Papel | Usuário | Senha |
-|-------|---------|-------|
-| Administrador | `admin` | `admin` |
-| Usuário | `usuario` | `usuario` |
+**Usuários locais** — provisionados por ENV (`SEGPORTAL_LOCAL_USERS`/`SEGPORTAL_LOCAL_PASSWORDS`); não há senhas demo no código.
 
 ### 2.2 Depois do login
 
@@ -118,6 +114,6 @@ docker compose up --build
 ```
 
 - Dashboard: http://localhost:8090  
-- SegPortal: http://localhost:8090  
+- SegPortal: http://localhost:8090
 
-Credenciais demo: `usuario`/`usuario` · `admin`/`admin`.
+Usuários locais: definidos por `SEGPORTAL_LOCAL_USERS`/`SEGPORTAL_LOCAL_PASSWORDS` — sem essas variáveis não há usuários locais. Ver [LOCAL_ADMIN.md](LOCAL_ADMIN.md).

@@ -15,11 +15,14 @@ Não é necessário seed manual.
 
 ### Demo local
 
+Defina usuários locais antes de subir (não há credenciais demo no código):
+
 ```bash
+SEGPORTAL_LOCAL_USERS="admin:Administrador:admin:admin@aqne.jus.br;usuario:Usuário Padrão:user:usuario@aqne.jus.br"
+SEGPORTAL_LOCAL_PASSWORDS="<senha_forte_admin>;<senha_forte_usuario>"
 docker compose -f docker-compose.dev.yml up --build
 # Aguarde o serviço segportal-bootstrap concluir (exit 0)
 # http://localhost:8090
-# admin / admin  ou  usuario / usuario
 # → abra "Navegador Web SegPortal"
 ```
 
@@ -114,7 +117,7 @@ No Kubernetes o Job `segportal-bootstrap` (`k8s/bootstrap`) aplica o mesmo boots
 - Pedidos extras exigem justificativa e aprovação admin
 - Navegador padrão é compartilhado como *conexão*; sessões remotas do SegPortal continuam individualizadas
 - VNC **não** é exposto fora da rede Docker/K8s (só guacd acessa a porta 5900)
-- Senha VNC interna (`segport1`) alinhada entre container e conexão SegPortal — troque em produção via `VNC_PASSWORD`
+- Senha VNC **obrigatória e idêntica** nos dois lados: `VNC_PASSWORD` (serviço `web-browser`) e `SEGPORTAL_VNC_PASSWORD` (parâmetro `password` da conexão no bootstrap SQL) — não existe mais default `segport1`
 - Ajuste a whitelist do Squid para limitar destinos externos
 
 ## Troubleshooting — “Navegador HTML5 não conecta”
@@ -133,7 +136,7 @@ docker compose -f docker-compose.dev.yml exec web-browser nc -z 127.0.0.1 5900 &
 docker compose -f docker-compose.dev.yml logs --tail=50 web-browser
 ```
 
-3. Confira parâmetros da conexão no banco (`hostname=web-browser`, `port=5900`, `password=segport1`):
+3. Confira parâmetros da conexão no banco (`hostname=web-browser`, `port=5900`, `password=<SEGPORTAL_VNC_PASSWORD>`):
 
 ```bash
 docker compose -f docker-compose.dev.yml exec -T postgres \

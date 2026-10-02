@@ -1,12 +1,12 @@
 # SegPortal — Portal ZTNA do AQNE
 
-**Versão:** 2026-09-05 (portal-auth · pastas AD · OneDrive/Google Drive · navegador Bacen)
+**Versão:** 2026-10-02 (auth local via ENV · LDAP real via ldap3 · MFA TOTP · rate limiting · catálogo server-side)
 
 [![CI](https://github.com/avilarezende/segportal/actions/workflows/ci.yml/badge.svg)](https://github.com/avilarezende/segportal/actions/workflows/ci.yml)
 
 **Repositório:** https://github.com/avilarezende/segportal
 
-**SegPortal** é o portal de acesso seguro do **AQNE**. Com acesso clientless HTML5, substitui a VPN interna por um modelo **ZTNA** (Zero Trust Network Access): autenticação local e/ou LDAP (`aqne.jus.br`) com MFA opcional, e acesso a RDP, VNC, SSH e navegação web **direto no navegador**, sem cliente VPN.
+**SegPortal** é o portal de acesso seguro do **AQNE**. Com acesso clientless HTML5, substitui a VPN interna por um modelo **ZTNA** (Zero Trust Network Access): autenticação local (provisionada por variáveis de ambiente) e/ou LDAP (`aqne.jus.br`) com MFA TOTP opcional, e acesso a RDP, VNC, SSH e navegação web **direto no navegador**, sem cliente VPN.
 
 ---
 
@@ -76,20 +76,29 @@ Preview interativo: [docs/mockup/segportal-preview.html](docs/mockup/segportal-p
 git clone https://github.com/avilarezende/segportal.git
 cd segportal
 cp .env.example .env
-# Edite .env (PostgreSQL; LDAP/RADIUS se for usar)
+# Edite .env — obrigatório: POSTGRES_PASSWORD, PORTAL_SESSION_SECRET,
+# SEGPORTAL_LOCAL_USERS + SEGPORTAL_LOCAL_PASSWORDS, GUACAMOLE_ADMIN_PASSWORD, VNC_PASSWORD
+# (LDAP/RADIUS/TOTP opcionais — ver docs/CONFIGURATION.md)
 docker compose up --build
 ```
+
+> O portal **não inicia** sem `PORTAL_SESSION_SECRET` definida. Sem `SEGPORTAL_LOCAL_USERS`/`SEGPORTAL_LOCAL_PASSWORDS` não há usuários locais.
 
 Acesse:
 - **Dashboard pessoal (arquivos AD + nuvem):** http://localhost:8090  
 - **SegPortal (sessões remotas):** http://localhost:8090
 
-No primeiro boot o serviço `segportal-bootstrap` cria schema (se preciso), papéis e a conexão **Navegador Web SegPortal** (Firefox via VNC) liberada para todos. Demo sem LDAP:
+No primeiro boot o serviço `segportal-bootstrap` cria schema (se preciso), papéis, o admin (`GUACAMOLE_ADMIN_PASSWORD`) e a conexão **Navegador Web SegPortal** (Firefox via VNC) liberada para todos.
+
+Ambiente local **sem LDAP** — usuários vêm de variáveis de ambiente (não existem mais senhas demo no código):
 
 ```bash
+SEGPORTAL_LOCAL_USERS="admin:Administrador:admin:admin@aqne.jus.br;usuario:Usuário Padrão:user:usuario@aqne.jus.br"
+SEGPORTAL_LOCAL_PASSWORDS="<senha_do_admin>;<senha_do_usuario>"
 docker compose -f docker-compose.dev.yml up --build
-# admin / admin  ·  usuario / usuario
 ```
+
+Formato de `SEGPORTAL_LOCAL_USERS`: `login:Nome de exibição:Papel:email;...` (papel `admin` ou `user`), com as senhas na **mesma ordem** em `SEGPORTAL_LOCAL_PASSWORDS` (separadas por `;`). Mais detalhes: [docs/LOCAL_ADMIN.md](docs/LOCAL_ADMIN.md).
 
 Detalhes: [docs/CONNECTIONS.md](docs/CONNECTIONS.md)
 
@@ -108,9 +117,14 @@ kubectl apply -k k8s/overlays/production
 | Item | Arquivo / variável | Detalhes |
 |------|-------------------|----------|
 | **Papéis admin / usuário** | `config/roles/roles.yaml` | [ROLES.md](docs/ROLES.md) |
-| **Admin local padrão** | `admin` / `admin` | [LOCAL_ADMIN.md](docs/LOCAL_ADMIN.md) |
-| LDAP (opcional) | `LDAP_ENABLED`, `config/ldap/ldap-settings.yaml` | [CONFIGURATION.md](docs/CONFIGURATION.md#3-active-directory-ldap--opcional) |
-| MFA RADIUS | `MFA_RADIUS_HOST`, `MFA_RADIUS_SECRET` | [CONFIGURATION.md](docs/CONFIGURATION.md#4-mfa-via-radius) |
+| **Usuários locais (obrigatório)** | `SEGPORTAL_LOCAL_USERS` + `SEGPORTAL_LOCAL_PASSWORDS` | [LOCAL_ADMIN.md](docs/LOCAL_ADMIN.md) |
+| **Admin no bootstrap** | `GUACAMOLE_ADMIN_PASSWORD` (obrigatória) | [LOCAL_ADMIN.md](docs/LOCAL_ADMIN.md) |
+| **Sessão (obrigatório)** | `PORTAL_SESSION_SECRET` — sem ela o portal **não inicia** | [ADMIN_MANUAL.md](docs/ADMIN_MANUAL.md) |
+| LDAP (opcional) | `LDAP_ENABLED` (LDAP real via `ldap3`, fail-closed), `config/ldap/ldap-settings.yaml` | [CONFIGURATION.md](docs/CONFIGURATION.md#3-active-directory-ldap--opcional) |
+| MFA RADIUS | `MFA_RADIUS_HOST`, `MFA_RADIUS_SECRET` | [CONFIGURATION.md](docs/CONFIGURATION.md#4-mfa-radius-e-totp) |
+| MFA TOTP (2FA) | `SEGPORTAL_TOTP_SECRETS` (JSON por usuário) | [CONFIGURATION.md](docs/CONFIGURATION.md#4-mfa-radius-e-totp) |
+| Rate limiting | `SEGPORTAL_RATE_LIMIT_ENABLED` | login 5/min · escrita 30/min |
+| Senha VNC (obrigatória) | `VNC_PASSWORD` (web-browser) = `SEGPORTAL_VNC_PASSWORD` (bootstrap SQL) | [CONNECTIONS.md](docs/CONNECTIONS.md) |
 | Navegador padrão | `web-browser` + bootstrap | [CONNECTIONS.md](docs/CONNECTIONS.md) |
 | Sessões | `SESSION_TIMEOUT_MINUTES` | Timeout e limite de conexões |
 | Proxy egress | `config/proxy/squid.conf` | Whitelist de domínios externos |
@@ -145,14 +159,19 @@ segportal/
 
 ## Segurança
 
-- Autenticação **local** sempre disponível (admin `admin` independente do LDAP)
-- LDAP **opcional** — apontamentos configuráveis pelo administrador
-- MFA via RADIUS quando habilitado
+- Autenticação **local provisionada via ENV** (`SEGPORTAL_LOCAL_USERS` / `SEGPORTAL_LOCAL_PASSWORDS`) — **sem as variáveis não há usuários locais** (nenhuma senha demo no código)
+- LDAP **real via `ldap3`** quando habilitado — **fail-closed**: sem bind válido → `401`; usuário local autentica somente com LDAP desligado
+- MFA **TOTP (2FA)** por usuário via `SEGPORTAL_TOTP_SECRETS` (login em 2 etapas)
+- `PORTAL_SESSION_SECRET` **obrigatória** — o portal não inicia sem ela; cookie de sessão com `secure=True` (desative só em dev com `SEGPORTAL_COOKIE_SECURE=0`)
+- Senhas **VNC obrigatórias** (`VNC_PASSWORD` / `SEGPORTAL_VNC_PASSWORD`) — sem defaults em claro
+- **Rate limiting** (slowapi): login 5/min, escrita da API 30/min (desligável em dev)
+- Catálogo de computadores **validado no servidor** (`/api/computers/{id}/authorize`) — 403 para usuário comum em item admin
 - Navegador HTML padrão com VNC **somente na rede interna**
 - Pedidos de terminal exigem **aprovação do admin**
 - Sessões **individualizadas** por usuário
 - **NetworkPolicies** isolam pods no Kubernetes
 - TLS obrigatório em produção
+- **CI**: job `security-scan` (gitleaks + bandit) e `compose-config` com variáveis dummy
 
 Detalhes: [docs/SECURITY.md](docs/SECURITY.md) · [docs/LOCAL_ADMIN.md](docs/LOCAL_ADMIN.md)
 
@@ -164,7 +183,7 @@ Detalhes: [docs/SECURITY.md](docs/SECURITY.md) · [docs/LOCAL_ADMIN.md](docs/LOC
 |-----------|----------|
 | [MANUAL.md](docs/MANUAL.md) | Manual do usuário e administrador |
 | [USAGE.md](docs/USAGE.md) | Fluxo de uso com imagens |
-| [LOCAL_ADMIN.md](docs/LOCAL_ADMIN.md) | Admin padrão, senha, exclusão e LDAP opcional |
+| [LOCAL_ADMIN.md](docs/LOCAL_ADMIN.md) | Usuários locais via ENV, senhas, exclusão e LDAP opcional |
 | [ROLES.md](docs/ROLES.md) | Papéis admin e usuário (RBAC) |
 | [CONNECTIONS.md](docs/CONNECTIONS.md) | Navegador padrão e pedidos de terminais |
 | [CONFIGURATION.md](docs/CONFIGURATION.md) | Configuração LDAP, MFA, proxy e K8s |

@@ -44,13 +44,18 @@ Sem `client_id`, a montagem cria pasta demo sob `DEMO_SHARES_ROOT/cloud/...`.
 
 | Método | Rota | Uso |
 |--------|------|-----|
-| POST | `/api/login` | Sessão cookie (`use_active_directory`) |
-| GET | `/api/dashboard` | Shares AD + estado das nuvens |
+| POST | `/api/login` | Sessão cookie (`use_active_directory`; com TOTP ativo responde `mfa_required` em 2 etapas) |
+| GET | `/api/dashboard` | Shares AD + estado das nuvens + `computers` **filtrados pelo papel** |
+| GET | `/api/computers/{id}/authorize` | Valida permissão **no servidor** (403 para comum em item admin) |
 | GET | `/api/files/{share_id}` | Listar pasta |
 | POST | `/api/files/{share_id}/upload` | Enviar arquivo |
 | POST | `/api/files/{share_id}/mkdir` | Criar pasta |
+| POST | `/api/files/{share_id}/rename` | Renomear |
+| DELETE | `/api/files/{share_id}/delete` | Excluir |
 | POST | `/api/cloud/{provider}/mount` | Montar OneDrive / Google Drive |
 | GET | `/api/health` | Saúde do serviço |
+
+> **Rate limiting (slowapi):** login **5/min**; escrita (`upload`/`mkdir`/`rename`/`delete`/`mount`) **30/min** — acima do limite → `429`. Desligar só em dev com `SEGPORTAL_RATE_LIMIT_ENABLED=0`.
 
 ---
 
@@ -70,4 +75,4 @@ Interface em HTML/CSS/JS (`services/portal-auth/static`):
 
 ## Operação (admin)
 
-Ver [ADMIN_MANUAL.md](ADMIN_MANUAL.md) §3. Variáveis: `PORTAL_SESSION_SECRET`, `DEMO_SHARES_ROOT`, `SESSIONS_INTERNAL_URL`, `LDAP_ENABLED`.
+Ver [ADMIN_MANUAL.md](ADMIN_MANUAL.md) §3. Variáveis: `PORTAL_SESSION_SECRET` *(obrigatória)*, `SEGPORTAL_COOKIE_SECURE`, `SEGPORTAL_LOCAL_USERS`/`SEGPORTAL_LOCAL_PASSWORDS`, `SEGPORTAL_TOTP_SECRETS`, `SEGPORTAL_RATE_LIMIT_ENABLED`, `DEMO_SHARES_ROOT`, `SESSIONS_INTERNAL_URL`, `LDAP_ENABLED`.

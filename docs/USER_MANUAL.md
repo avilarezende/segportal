@@ -29,14 +29,10 @@ Documentos relacionados: [USAGE.md](USAGE.md) (resumo visual) · [FILES.md](FILE
    - Produção: URL institucional do SegPortal (ingress)
 2. Informe **usuário** e **senha**.
 3. Se for conta de domínio, marque **Autenticar via Active Directory** (monta as pastas do AD no seu dashboard).
-4. Clique em **Entrar no portal**.
+4. **2FA (se ativo):** na primeira tentativa o portal pede o código e retorna `mfa_required`; informe o **código de 6 dígitos** do seu aplicativo autenticador (Google Authenticator, Aegis etc.) e envie novamente.
+5. Clique em **Entrar no portal**.
 
-**Demo local**
-
-| Usuário | Senha | Perfil |
-|---------|-------|--------|
-| `usuario` | `usuario` | Usuário padrão |
-| `admin` | `admin` | Administrador |
+> **Credenciais locais:** não existem senhas demo padrão (`admin`/`admin`). Seu usuário/senha local é fornecido pela sua instituição (`SEGPORTAL_LOCAL_USERS`/`SEGPORTAL_LOCAL_PASSWORDS`).
 
 Sessões remotas (RDP/VNC/navegador HTML5): `http://localhost:8090`.
 
@@ -154,7 +150,7 @@ Detalhes: [CONNECTIONS.md](CONNECTIONS.md).
 
 | Sintoma | O que tentar |
 |---------|----------------|
-| Login inválido | Confira Caps Lock; no demo use `usuario`/`usuario` |
+| Login inválido | Confira Caps Lock e o nome de usuário; se for conta de domínio, marque **Active Directory** |
 | Nenhuma pasta AD | Marque Active Directory no login; peça liberação ao admin |
 | Montar nuvem não abre OAuth | Ambiente em modo demo — esperado sem `client_id` |
 | Não envia arquivo | Pasta pode ser somente leitura ou arquivo acima do limite |
