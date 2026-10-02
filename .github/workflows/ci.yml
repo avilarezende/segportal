@@ -14,6 +14,27 @@ env:
   REGISTRY: registry.aqne.jus.br/segportal
 
 jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Gitleaks (secret scanning)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bandit (SAST — Python)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run Bandit
+        run: |
+          pip install bandit
+          bandit -q -r services --skip B101,B110,B311 -f sarif -o bandit.sarif || true
+
   lint-and-test:
     runs-on: ubuntu-latest
     steps:
@@ -32,7 +53,7 @@ jobs:
           pip install -r services/portal-auth/requirements.txt
 
       - name: Ruff lint
-        run: ruff check tests/
+        run: ruff check services/portal-auth tests/
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v4

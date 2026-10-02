@@ -505,15 +505,59 @@ function bindUi() {
     ev.preventDefault();
     const err = $("#login-error");
     err.hidden = true;
+
+    const fieldTOTP = $("#totp-field");
+    async function doLogin() {
+      try {
+        await api("/api/login", {
+          method: "POST",
+          body: {
+            username: $("#username").value,
+            password: $("#password").value,
+            use_active_directory: $("#use-ad").checked,
+            totp_code: $("#totp-code").value || "",
+          },
+        });
+        $("#totp-code").value = "";
+        fieldTOTP.hidden = true;
+        await refreshDashboard();
+        showApp();
+        setPanel("home");
+        toast("Bem-vindo ao SegPortal");
+      } catch (e) {
+        err.textContent = e.message || "Falha no login";
+        err.hidden = false;
+      }
+    }
+
+    // 1ª etapa: envia sem código 2FA. Se o servidor marcar mfa_required,
+    // revela o campo e aguarda o código antes de reenviar.
     try {
-      await api("/api/login", {
+      const res = await fetch("/api/login", {
         method: "POST",
-        body: {
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
           username: $("#username").value,
           password: $("#password").value,
           use_active_directory: $("#use-ad").checked,
-        },
+          totp_code: $("#totp-code").value || "",
+        }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (data && data.mfa_required) {
+        fieldTOTP.hidden = false;
+        $("#totp-code").focus();
+        err.textContent = data.error || "Informe o código 2FA";
+        err.hidden = false;
+        return;
+      }
+      if (!res.ok) {
+        const msg = (data && (data.detail || data.message)) || `Erro ${res.status}`;
+        err.textContent = msg;
+        err.hidden = false;
+        return;
+      }
       await refreshDashboard();
       showApp();
       setPanel("home");

@@ -19,6 +19,8 @@ from .cloud_drives import mount_demo, start_oauth, unmount, user_cloud_state
 from .config import settings
 from .files import delete, list_dir, mkdir, open_file_path, rename, upload_file
 from .ldap_shares import ensure_demo_tree, list_user_shares
+from .mfa import totp_enabled_for, verify_totp
+from .rate_limit import API_WRITE_LIMIT, LOGIN_LIMIT, limiter
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
@@ -30,6 +32,19 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="SegPortal AQNE", version="1.2.0", lifespan=lifespan)
+app.state.limiter = limiter
+from slowapi.errors import RateLimitExceeded  # noqa: E402
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    headers = {"Retry-After": str(int(exc.retry_after))} if exc.retry_after else None
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Muitas requisições. Tente novamente mais tarde."},
+        headers=headers,
+    )
+
 app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 app.mount("/browser", StaticFiles(directory=str(STATIC_DIR / "browser")), name="browser")
 
@@ -47,6 +62,7 @@ def health() -> dict:
 
 
 @app.post("/api/login")
+@limiter.limit(LOGIN_LIMIT)
 async def login(request: Request) -> JSONResponse:
     body = await request.json()
     user = authenticate(
@@ -54,6 +70,19 @@ async def login(request: Request) -> JSONResponse:
         str(body.get("password", "")),
         prefer_ldap=bool(body.get("use_active_directory", False)),
     )
+
+    totp_code = str(body.get("totp_code", "") or "").strip()
+    if totp_enabled_for(user.username):
+        if not verify_totp(user.username, totp_code):
+            return JSONResponse(
+                {
+                    "username": user.username,
+                    "mfa_required": True,
+                    "error": "Código de verificação (2FA) inválido ou ausente",
+                },
+                status_code=401,
+            )
+
     payload = {
         "username": user.username,
         "display_name": user.display_name,
@@ -114,7 +143,7 @@ def api_list(share_id: str, request: Request, path: str = "") -> dict:
     return list_dir(current_user(request), share_id, path)
 
 
-@app.post("/api/files/{share_id}/upload")
+@app.post("/api/files/{share_id}/upload", response_model=None)
 async def api_upload(
     share_id: str,
     request: Request,
@@ -125,6 +154,7 @@ async def api_upload(
 
 
 @app.post("/api/files/{share_id}/mkdir")
+@limiter.limit(API_WRITE_LIMIT)
 async def api_mkdir(share_id: str, request: Request) -> dict:
     body = await request.json()
     path = body.get("path", "")
@@ -133,12 +163,14 @@ async def api_mkdir(share_id: str, request: Request) -> dict:
 
 
 @app.post("/api/files/{share_id}/rename")
+@limiter.limit(API_WRITE_LIMIT)
 async def api_rename(share_id: str, request: Request) -> dict:
     body = await request.json()
     return rename(current_user(request), share_id, body["path"], body["new_name"])
 
 
 @app.delete("/api/files/{share_id}")
+@limiter.limit(API_WRITE_LIMIT)
 def api_delete(share_id: str, request: Request, path: str) -> dict:
     return delete(current_user(request), share_id, path)
 
@@ -155,6 +187,7 @@ def api_cloud(request: Request) -> dict:
 
 
 @app.post("/api/cloud/{provider}/mount")
+@limiter.limit(API_WRITE_LIMIT)
 async def api_cloud_mount(provider: str, request: Request) -> dict:
     user = current_user(request)
     try:

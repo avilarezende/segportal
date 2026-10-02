@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / "services" / "portal-auth"))
 
 # Ambiente de teste: usuários locais via env + chave de sessão obrigatória.
 os.environ.setdefault("PORTAL_SESSION_SECRET", "test-secret-segportal")
+os.environ.setdefault("SEGPORTAL_RATE_LIMIT_ENABLED", "0")
 os.environ.setdefault(
     "SEGPORTAL_LOCAL_USERS",
     "admin:Administrador SegPortal:admin:admin@aqne.jus.br;"
