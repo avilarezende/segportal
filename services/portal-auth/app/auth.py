@@ -107,10 +107,20 @@ def _authenticate_ldap(username: str, password: str) -> PortalUser:
     local silenciosamente quando LDAP está habilitado.
     """
     import ldap3
+    from ldap3.utils.conv import escape_filter_chars
+    from ldap3.utils.dn import escape_rdn
 
     cfg = ldap_config().get("ldap", {})
     hostname = cfg.get("hostname") or os.getenv("LDAP_HOSTNAME", "")
-    port = int(cfg.get("port") or os.getenv("LDAP_PORT", "389"))
+    # Criptografia do canal: ssl/ldaps → TLS implícito; starttls → TLS após open.
+    encryption = (
+        cfg.get("encryption_method") or os.getenv("LDAP_ENCRYPTION_METHOD", "")
+    ).strip().lower()
+    use_ssl = encryption in {"ssl", "ldaps"}
+    default_port = 636 if use_ssl else 389
+    port = int(cfg.get("port") or os.getenv("LDAP_PORT", str(default_port)))
+    if port == 636:
+        use_ssl = True
     user_base = cfg.get("user_base_dn") or ""
     username_attr = cfg.get("username_attribute", "sAMAccountName")
     domain = cfg.get("domain", "")
@@ -119,9 +129,15 @@ def _authenticate_ldap(username: str, password: str) -> PortalUser:
     if not hostname or not user_base:
         raise HTTPException(status_code=500, detail="LDAP não configurado corretamente")
 
-    # Bind com a própria credencial do usuário (usuário senior bind é comum em AD)
-    user_dn = f"{username_attr}={username},{user_base}"
-    server = ldap3.Server(hostname, port=port, use_ssl=False, get_info=ldap3.NONE)
+    # Senha vazia é rejeitada: o AD aceita "unauthenticated bind" (bind com senha
+    # vazia retorna sucesso sem autenticar), o que permitiria login sem senha.
+    if not password:
+        raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
+
+    # Escapa a entrada do usuário para evitar LDAP injection no DN e no filtro.
+    user_dn = f"{username_attr}={escape_rdn(username)},{user_base}"
+    safe_filter_user = escape_filter_chars(username)
+    server = ldap3.Server(hostname, port=port, use_ssl=use_ssl, get_info=ldap3.NONE)
     conn = ldap3.Connection(
         server,
         user=user_dn,
@@ -130,6 +146,9 @@ def _authenticate_ldap(username: str, password: str) -> PortalUser:
         auto_bind=False,
     )
     try:
+        if encryption == "starttls" and not use_ssl:
+            conn.open()
+            conn.start_tls()
         bound = conn.bind()
         if not bound:
             raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
@@ -139,7 +158,7 @@ def _authenticate_ldap(username: str, password: str) -> PortalUser:
         try:
             conn.search(
                 search_base=user_base,
-                search_filter=f"(&(objectClass=user)({username_attr}={username}))",
+                search_filter=f"(&(objectClass=user)({username_attr}={safe_filter_user}))",
                 attributes=[username_attr, "memberOf"],
                 size_limit=1,
             )

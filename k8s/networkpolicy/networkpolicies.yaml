@@ -1,0 +1,117 @@
+# SegPortal AQNE — isolamento de rede (OWASP: defesa em profundidade / menor
+# exposição). Apenas políticas de INGRESS: o egress permanece liberado para não
+# quebrar conexões de saída (guacd->web-browser, web-browser->proxy, DNS, etc.).
+# Observação: sondas (liveness/readiness) TCP/HTTP partem do kubelet (host); os
+# principais CNIs (Calico/Cilium/Canal) as permitem por padrão. Se o seu CNI
+# policia o host, libere o CIDR dos nós nas políticas abaixo.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Guacamole (portal web): exposto na 8080 — o Ingress Controller vive em outro
+# namespace, então liberamos a porta para qualquer origem.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-guacamole-http
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: guacamole
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+---
+# PostgreSQL: 5432 apenas do Guacamole e do Job de bootstrap.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: guacamole
+        - podSelector:
+            matchLabels:
+              app: segportal-bootstrap
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+# guacd: 4822 apenas do Guacamole.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-guacd
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: guacd
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: guacamole
+      ports:
+        - protocol: TCP
+          port: 4822
+---
+# Navegador web (VNC): 5900 apenas do guacd.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-web-browser-vnc
+spec:
+  podSelector:
+    matchLabels:
+      app: web-browser
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: guacd
+      ports:
+        - protocol: TCP
+          port: 5900
+---
+# Proxy de egress (Squid): 3128 do navegador web e do Guacamole.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-proxy-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: proxy-egress
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: web-browser
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: guacamole
+      ports:
+        - protocol: TCP
+          port: 3128

@@ -17,9 +17,21 @@ spec:
         app: web-browser
         component: default-browser
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: firefox
           image: registry.aqne.jus.br/segportal/web-browser:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 5900
               name: vnc

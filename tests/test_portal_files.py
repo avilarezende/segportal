@@ -165,7 +165,8 @@ def test_ui_hides_session_backend_and_labels_computers(client):
 
 def test_api_cloud_mount_and_files(client):
     client.post("/api/login", json={"username": "admin", "password": "admin"})
-    m = client.post("/api/cloud/onedrive/mount")
+    csrf = client.cookies.get("segportal_csrf")
+    m = client.post("/api/cloud/onedrive/mount", headers={"X-CSRF-Token": csrf or ""})
     assert m.status_code == 200
     assert m.json()["mode"] == "demo"
     files = client.get("/api/files/cloud-onedrive")

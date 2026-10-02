@@ -32,9 +32,20 @@ spec:
         app.kubernetes.io/name: proxy-egress
         app.kubernetes.io/component: proxy-egress
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 13
+        runAsGroup: 13
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: squid
           image: registry.aqne.jus.br/segportal/egress-proxy:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 3128
               name: http-proxy

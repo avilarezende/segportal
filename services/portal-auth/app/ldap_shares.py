@@ -113,9 +113,9 @@ def resolve_share_root(user: PortalUser, share_id: str) -> tuple[Path, dict[str,
     if share_id not in shares:
         raise FileNotFoundError(f"Share '{share_id}' não disponível")
     meta = shares[share_id]
-    root = (_demo_root() / meta["path"]).resolve()
     demo_root = _demo_root().resolve()
-    if not str(root).startswith(str(demo_root)):
+    root = (demo_root / meta["path"]).resolve()
+    if root != demo_root and demo_root not in root.parents:
         raise PermissionError("Caminho inválido")
     root.mkdir(parents=True, exist_ok=True)
     return root, meta

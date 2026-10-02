@@ -17,11 +17,20 @@ from .ldap_shares import resolve_share_root
 SAFE_NAME = re.compile(r"^[^\\/:*?\"<>|\x00-\x1f]+$")
 
 
+def _valid_name(name: str) -> bool:
+    """Nome de arquivo/pasta seguro: sem separadores, sem '.'/'..', sem controle."""
+    return bool(name) and name not in (".", "..") and SAFE_NAME.match(name) is not None
+
+
 def _join(root: Path, rel: str) -> Path:
     rel = (rel or "").replace("\\", "/").lstrip("/")
     parts = [p for p in rel.split("/") if p not in ("", ".", "..")]
-    target = root.joinpath(*parts).resolve()
-    if not str(target).startswith(str(root.resolve())):
+    root_resolved = root.resolve()
+    target = root_resolved.joinpath(*parts).resolve()
+    # Contenção robusta: compara via hierarquia de caminhos (não prefixo de
+    # string, que deixaria passar irmãos como /data/u1 vs /data/u1-evil) e, como
+    # resolve() segue symlinks, também barra escapes por link simbólico.
+    if target != root_resolved and root_resolved not in target.parents:
         raise HTTPException(status_code=400, detail="Caminho inválido")
     return target
 
@@ -75,7 +84,7 @@ async def upload_file(
     root, share = resolve_share_root(user, share_id)
     if share.get("read_only"):
         raise HTTPException(status_code=403, detail="Somente leitura")
-    if not upload.filename or not SAFE_NAME.match(upload.filename):
+    if not _valid_name(upload.filename or ""):
         raise HTTPException(status_code=400, detail="Nome de arquivo inválido")
 
     folder = _join(root, rel_path)
@@ -100,7 +109,7 @@ def mkdir(user: PortalUser, share_id: str, rel_path: str, name: str) -> dict[str
     root, share = resolve_share_root(user, share_id)
     if share.get("read_only"):
         raise HTTPException(status_code=403, detail="Somente leitura")
-    if not SAFE_NAME.match(name or ""):
+    if not _valid_name(name or ""):
         raise HTTPException(status_code=400, detail="Nome inválido")
     parent = _join(root, rel_path)
     parent.mkdir(parents=True, exist_ok=True)
@@ -115,7 +124,7 @@ def rename(user: PortalUser, share_id: str, rel_path: str, new_name: str) -> dic
     root, share = resolve_share_root(user, share_id)
     if share.get("read_only"):
         raise HTTPException(status_code=403, detail="Somente leitura")
-    if not SAFE_NAME.match(new_name or ""):
+    if not _valid_name(new_name or ""):
         raise HTTPException(status_code=400, detail="Nome inválido")
     src = _join(root, rel_path)
     if not src.exists():
