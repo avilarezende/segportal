@@ -40,15 +40,25 @@ table_exists() {
   psql_q -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$1'" 2>/dev/null | grep -q 1
 }
 
-# Gera hash de senha no formato Guacamole: SHA-256(UTF-8(password) || salt)
-# Usa openssl quando disponível; fallback para sha256sum.
+# Gera hash no formato Guacamole: SHA-256( UTF-8(password) || UPPER(hex(salt)) ).
+# IMPORTANTE: o Guacamole concatena a senha com a representação HEXADECIMAL
+# MAIÚSCULA do salt (não com os bytes crus do salt). Compatível com o guacadmin
+# canônico. Usa sha256sum (presente no host e em postgres:16-alpine).
 guac_hash() {
   password="$1"
-  salt_hex="$2"
-  { printf '%s' "$password"; printf '%s' "$salt_hex" | xxd -r -p; } | openssl dgst -sha256 -binary | xxd -p -c 256
+  salt_hex=$(printf '%s' "$2" | tr 'a-f' 'A-F')
+  if command -v openssl >/dev/null 2>&1; then
+    printf '%s%s' "$password" "$salt_hex" | openssl dgst -sha256 | awk '{print $NF}' | tr 'a-f' 'A-F'
+  else
+    printf '%s%s' "$password" "$salt_hex" | sha256sum | cut -d' ' -f1 | tr 'a-f' 'A-F'
+  fi
 }
 gen_salt() {
-  openssl rand -hex 32
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 32
+  else
+    od -An -tx1 -N32 /dev/urandom | tr -d ' \n'
+  fi
 }
 
 if ! table_exists guacamole_connection; then
@@ -90,8 +100,10 @@ for f in 003-segportal-roles.sql 004-default-browser.sql 005-connection-requests
   esac
 done
 
-# BusyBox tr não trata bem [:space:] — limpa só whitespace ASCII
-trim() { tr -d '\n\r\t '; }
+# Remove apenas CR/LF do fim da saída do psql (-tA não gera espaços nas bordas);
+# NÃO pode remover espaços internos, senão nomes como "Navegador Web SegPortal"
+# ficam corrompidos na comparação.
+trim() { tr -d '\r\n'; }
 
 NAME=$(psql_q -tAc "SELECT connection_name FROM guacamole_connection WHERE connection_name='Navegador Web SegPortal'" | trim)
 if [ "$NAME" != "Navegador Web SegPortal" ]; then
