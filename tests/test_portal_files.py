@@ -114,6 +114,41 @@ def test_api_login_and_dashboard(client):
     assert health.json()["status"] == "ok"
 
 
+def test_dashboard_filters_admin_computers_server_side(client):
+    """Usuário comum não recebe o item admin_only (filtrando no servidor)."""
+    r = client.post("/api/login", json={"username": "usuario", "password": "usuario"})
+    assert r.status_code == 200
+
+    dash = client.get("/api/dashboard").json()
+    ids = {c["id"] for c in dash["computers"]}
+    assert "desktop-admin" not in ids
+    assert "desktop-financeiro" in ids
+
+    # Admin vê todos os itens.
+    client.post("/api/login", json={"username": "admin", "password": "admin"})
+    dash_admin = client.get("/api/dashboard").json()
+    ids_admin = {c["id"] for c in dash_admin["computers"]}
+    assert "desktop-admin" in ids_admin
+
+
+def test_authorize_computer_enforces_role(client):
+    client.post("/api/login", json={"username": "usuario", "password": "usuario"})
+
+    # Usuário comum: item restrito → 403 mesmo chamando direto.
+    r = client.get("/api/computers/desktop-admin/authorize")
+    assert r.status_code == 403
+
+    # Usuário comum: item liberado → 200.
+    ok = client.get("/api/computers/desktop-financeiro/authorize")
+    assert ok.status_code == 200
+    assert ok.json()["ok"] is True
+
+    # Admin: item restrito → 200.
+    client.post("/api/login", json={"username": "admin", "password": "admin"})
+    admin = client.get("/api/computers/desktop-admin/authorize")
+    assert admin.status_code == 200
+
+
 def test_ui_hides_session_backend_and_labels_computers(client):
     html = client.get("/").text.lower()
     assert "abrir computadores" in html

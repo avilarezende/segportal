@@ -15,6 +15,7 @@ from .auth import (
     current_user,
     set_session_cookie,
 )
+from .catalog import catalogo_para_usuario, item_autorizado
 from .cloud_drives import mount_demo, start_oauth, unmount, user_cloud_state
 from .config import settings
 from .files import delete, list_dir, mkdir, open_file_path, rename, upload_file
@@ -128,6 +129,7 @@ def dashboard(request: Request) -> dict:
         },
         "shares": list_user_shares(user),
         "cloud_drives": user_cloud_state(user),
+        "computers": catalogo_para_usuario(user.role),
         "ldap_enabled": settings.ldap_enabled or user.auth_source == "ldap",
         "features": {
             "embedded_browser": True,
@@ -136,6 +138,22 @@ def dashboard(request: Request) -> dict:
             "calendar": True,
         },
     }
+
+
+@app.get("/api/computers/{item_id}/authorize")
+def authorize_computer(item_id: str, request: Request) -> JSONResponse:
+    """Autoriza a abertura de um item do catálogo — decisão no servidor.
+
+    Usuário sem o papel necessário recebe 403, mesmo chamando direto.
+    """
+    user = current_user(request)
+    item = item_autorizado(user.role, item_id)
+    if not item:
+        return JSONResponse(
+            {"detail": "Você não tem permissão para abrir este computador/aplicação"},
+            status_code=403,
+        )
+    return JSONResponse({"ok": True, "item": item})
 
 
 @app.get("/api/files/{share_id}")

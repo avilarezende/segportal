@@ -19,32 +19,9 @@ const BROWSER_PRESETS = {
   "https://www.bcb.gov.br": "/browser/bacen.html",
 };
 
-const COMPUTERS = [
-  {
-    id: "browser-html",
-    title: "Navegador Web SegPortal",
-    description: "Navegação corporativa HTML5 já disponível na aba Navegador.",
-    kind: "browser",
-    badge: "Padrão",
-  },
-  {
-    id: "desktop-financeiro",
-    title: "Desktop Financeiro",
-    description: "Estação remota com sistemas financeiros (liberação sob demanda).",
-    kind: "desktop",
-    badge: "RDP",
-    embed: "/browser/desktop.html?name=Desktop%20Financeiro",
-  },
-  {
-    id: "desktop-admin",
-    title: "Desktop Administrativo",
-    description: "Estação remota para tarefas administrativas.",
-    kind: "desktop",
-    badge: "RDP",
-    embed: "/browser/desktop.html?name=Desktop%20Administrativo",
-    adminOnly: true,
-  },
-];
+// Catálogo de computadores/aplicações NÃO fica mais hardcoded aqui.
+// Ele vem do /api/dashboard já filtrado pelo papel do usuário no servidor
+// (ver app/catalog.py). O frontend apenas exibe o que a API autorizou.
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -275,11 +252,13 @@ function renderComputers() {
   const grid = $("#computers-grid");
   const session = $("#computer-session");
   if (!grid) return;
-  const isAdmin = state.dashboard?.user?.role === "admin";
+  const computers = (state.dashboard && state.dashboard.computers) || [];
   grid.hidden = false;
   if (session) session.hidden = true;
   grid.innerHTML = "";
-  COMPUTERS.filter((c) => !c.adminOnly || isAdmin).forEach((c) => {
+  // A API já retornou apenas os itens autorizados para o papel atual
+  // (filtragem no servidor em app/catalog.py). Sem filtro client-side.
+  computers.forEach((c) => {
     const card = document.createElement("article");
     card.className = "place-card computer-card";
     card.setAttribute("role", "listitem");
@@ -296,9 +275,24 @@ function renderComputers() {
   });
 }
 
-function openComputer(id) {
-  const item = COMPUTERS.find((c) => c.id === id);
-  if (!item) return;
+async function openComputer(id) {
+  const item = ((state.dashboard && state.dashboard.computers) || []).find((c) => c.id === id);
+  if (!item) {
+    toast("Computador/aplicação não disponível para seu usuário");
+    return;
+  }
+  // Autorização revalidada no servidor antes de abrir (defesa em profundidade).
+  try {
+    const auth = await api(`/api/computers/${encodeURIComponent(id)}/authorize`);
+    if (!auth.ok) {
+      toast(auth.detail || "Acesso não autorizado");
+      return;
+    }
+  } catch (e) {
+    toast(e.message || "Acesso não autorizado");
+    return;
+  }
+
   if (item.kind === "browser") {
     setPanel("browser");
     navigateBrowser("segportal://inicio");
@@ -474,7 +468,7 @@ async function handleAction(el) {
       return;
     }
     if (action === "computer" && el.dataset.id) {
-      openComputer(el.dataset.id);
+      await openComputer(el.dataset.id);
       return;
     }
     if (action === "rename" && el.dataset.path) {
