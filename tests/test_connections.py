@@ -55,15 +55,23 @@ class TestDefaultBrowserAndRequests:
         text = (ROOT / "services" / "web-browser" / "Dockerfile").read_text(encoding="utf-8")
         assert "firefox-esr" in text
         assert "x11vnc" in text
-        assert "VNC_PASSWORD=segport1" in text
+        # A senha VNC não deve mais estar em camada de imagem (vem de Secret/env).
+        assert "VNC_PASSWORD=segport1" not in text
+        assert "VNC_PASSWORD=" in text
         assert "VNC_PORT=5900" in text
         assert (ROOT / "services" / "web-browser" / "start-browser.sh").is_file()
 
-    def test_vnc_password_aligned(self) -> None:
+    def test_vnc_password_not_hardcoded(self) -> None:
         sql = (ROOT / "scripts" / "sql" / "004-default-browser.sql").read_text(encoding="utf-8")
         compose = (ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
-        assert "('password', 'segport1')" in sql or "\"password\", \"segport1\"" in sql
-        assert "VNC_PASSWORD: segport1" in compose
+        dockerfile = (ROOT / "services" / "web-browser" / "Dockerfile").read_text(encoding="utf-8")
+        # Nenhuma ocorrência da senha em claro nos arquivos de deploy.
+        assert "segport1" not in sql
+        assert "segport1" not in compose
+        assert "segport1" not in dockerfile
+        # A senha agora é injetada por variável psql / env.
+        assert "v_vnc_password" in sql
+        assert "VNC_PASSWORD" in compose
         assert "password" in sql.lower()
 
     def test_connections_doc(self) -> None:

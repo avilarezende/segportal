@@ -31,8 +31,8 @@ default_browser:
   protocol: vnc
   hostname: web-browser
   port: 5900
-  # Mesma senha do container (VNC_PASSWORD) e do SQL 004-default-browser.sql
-  password: segport1
+  # Mesma senha do container (VNC_PASSWORD) — injetada via Secret/env no SQL 004
+  password: ${VNC_PASSWORD}
   grant_to_groups:
     - segportal-users
     - segportal-admins

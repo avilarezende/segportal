@@ -1,10 +1,11 @@
-"""Autenticação do portal (sessão cookie + usuários demo)."""
+"""Autenticação do portal (sessão cookie + LDAP real + usuários locais via env)."""
 
 from __future__ import annotations
 
 import hashlib
 import hmac
 import json
+import os
 import time
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -13,20 +14,38 @@ from fastapi import HTTPException, Request, Response
 
 from .config import ldap_config, settings
 
-DEMO_USERS: dict[str, dict[str, Any]] = {
-    "admin": {
-        "password": "admin",
-        "display_name": "Administrador SegPortal",
-        "role": "admin",
-        "email": "admin@aqne.jus.br",
-    },
-    "usuario": {
-        "password": "usuario",
-        "display_name": "Usuário Demonstração",
-        "role": "user",
-        "email": "usuario@aqne.jus.br",
-    },
-}
+# Usuários locais agora vêm de variáveis de ambiente — nada de senha em claro
+# no repositório. Formato esperado (uma entrada separada por ";"):
+#   SEGPORTAL_LOCAL_USERS="admin:Admin SegPortal:admin:admin@aqne.jus.br;"
+#                          "usuario:Usuário:user:usuario@aqne.jus.br"
+# As senhas vêm em SEGPORTAL_LOCAL_PASSWORDS no mesmo formato indexado:
+#   SEGPORTAL_LOCAL_PASSWORDS="senhaAdmin;senhaUsuario"
+
+
+def _local_users() -> dict[str, dict[str, Any]]:
+    raw_users = os.getenv("SEGPORTAL_LOCAL_USERS", "")
+    raw_pws = os.getenv("SEGPORTAL_LOCAL_PASSWORDS", "")
+    if not raw_users or not raw_pws:
+        return {}
+
+    users: dict[str, dict[str, Any]] = {}
+    u_lines = [u for u in raw_users.split(";") if u]
+    p_lines = [p for p in raw_pws.split(";") if p]
+    if len(u_lines) != len(p_lines):
+        return {}
+
+    for entry, password in zip(u_lines, p_lines, strict=False):
+        parts = [p.strip() for p in entry.split(":")]
+        if len(parts) != 4:
+            continue
+        username, display_name, role, email = parts
+        users[username.lower()] = {
+            "password": password,
+            "display_name": display_name,
+            "role": role,
+            "email": email,
+        }
+    return users
 
 
 @dataclass
@@ -72,20 +91,109 @@ def parse_session_token(token: str | None) -> PortalUser | None:
     )
 
 
+def _ldap_available() -> bool:
+    try:
+        import ldap3  # noqa: F401
+    except ImportError:
+        return False
+    cfg = ldap_config().get("ldap", {})
+    return bool(cfg.get("enabled")) or settings.ldap_enabled
+
+
+def _authenticate_ldap(username: str, password: str) -> PortalUser:
+    """Autentica contra o AD via bind LDAP real (ldap3).
+
+    Falha com 401 (fail-closed) se o bind falhar — nunca cai para usuário
+    local silenciosamente quando LDAP está habilitado.
+    """
+    import ldap3
+
+    cfg = ldap_config().get("ldap", {})
+    hostname = cfg.get("hostname") or os.getenv("LDAP_HOSTNAME", "")
+    port = int(cfg.get("port") or os.getenv("LDAP_PORT", "389"))
+    user_base = cfg.get("user_base_dn") or ""
+    username_attr = cfg.get("username_attribute", "sAMAccountName")
+    domain = cfg.get("domain", "")
+    role_groups = cfg.get("role_groups", {}) or {}
+
+    if not hostname or not user_base:
+        raise HTTPException(status_code=500, detail="LDAP não configurado corretamente")
+
+    # Bind com a própria credencial do usuário (usuário senior bind é comum em AD)
+    user_dn = f"{username_attr}={username},{user_base}"
+    server = ldap3.Server(hostname, port=port, use_ssl=False, get_info=ldap3.NONE)
+    conn = ldap3.Connection(
+        server,
+        user=user_dn,
+        password=password,
+        raise_exceptions=True,
+        auto_bind=False,
+    )
+    try:
+        bound = conn.bind()
+        if not bound:
+            raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
+
+        # Busca os grupos do usuário para mapear papel
+        role = "user"
+        try:
+            conn.search(
+                search_base=user_base,
+                search_filter=f"(&(objectClass=user)({username_attr}={username}))",
+                attributes=[username_attr, "memberOf"],
+                size_limit=1,
+            )
+            if conn.entries:
+                member_of = conn.entries[0].memberOf or []
+                group_values = [str(m).lower() for m in member_of]
+                admin_group = str(role_groups.get("admin", "")).lower()
+                if admin_group and any(admin_group in g for g in group_values):
+                    role = "admin"
+        except Exception:
+            role = "user"  # sem groups mapeados mantém papél mínimo
+
+        return PortalUser(
+            username=username.lower(),
+            display_name=username,
+            role=role,
+            email=f"{username}@{domain}".lower() if domain else "",
+            auth_source="ldap",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        msg = (
+            f"Falha na autenticação LDAP: {exc}"
+            if os.getenv("SEGPORTAL_DEBUG")
+            else "Falha na autenticação LDAP"
+        )
+        raise HTTPException(status_code=401, detail=msg) from exc
+    finally:
+        try:
+            conn.unbind()
+        except Exception:
+            pass
+
+
 def authenticate(username: str, password: str, prefer_ldap: bool = False) -> PortalUser:
     user = username.strip().lower()
-    demo = DEMO_USERS.get(user)
-    if not demo or not hmac.compare_digest(demo["password"], password):
+
+    # Se LDAP está habilitado (config ou env), o fluxo é LDAP — sem fallback local.
+    if prefer_ldap or settings.ldap_enabled or _ldap_available():
+        return _authenticate_ldap(user, password)
+
+    # Modo local: usuários provisionados via env (nada de senha em claro no código).
+    local = _local_users()
+    entry = local.get(user)
+    if not entry or not hmac.compare_digest(entry["password"], password):
         raise HTTPException(status_code=401, detail="Usuário ou senha inválidos")
 
-    ldap_on = settings.ldap_enabled or bool(ldap_config().get("ldap", {}).get("enabled"))
-    source = "ldap" if (prefer_ldap or ldap_on) else "local"
     return PortalUser(
         username=user,
-        display_name=demo["display_name"],
-        role=demo["role"],
-        email=demo["email"],
-        auth_source=source,
+        display_name=entry["display_name"],
+        role=entry["role"],
+        email=entry["email"],
+        auth_source="local",
     )
 
 
@@ -97,10 +205,15 @@ def current_user(request: Request) -> PortalUser:
 
 
 def set_session_cookie(response: Response, user: PortalUser) -> None:
+    # secure=True por padrão; em desenvolvimento HTTP local pode ser desligado
+    # explicitamente com SEGPORTAL_COOKIE_SECURE=0.
+    secure_raw = os.getenv("SEGPORTAL_COOKIE_SECURE", "1").strip().lower()
+    cookie_secure = secure_raw not in {"0", "false", "no"}
     response.set_cookie(
         key="segportal_session",
         value=create_session_token(user),
         httponly=True,
+        secure=cookie_secure,
         samesite="lax",
         max_age=8 * 3600,
         path="/",

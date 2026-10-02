@@ -103,8 +103,8 @@ services:
       DISPLAY_WIDTH: "1280"
       DISPLAY_HEIGHT: "800"
       VNC_PORT: "5900"
-      # Deve coincidir com o parâmetro password da conexão Guacamole (004-default-browser.sql)
-      VNC_PASSWORD: ${VNC_PASSWORD:-segport1}
+      # Deve coincidir com SEGPORTAL_VNC_PASSWORD usado pelo bootstrap no SQL 004
+      VNC_PASSWORD: ${VNC_PASSWORD:?Defina VNC_PASSWORD e SEGPORTAL_VNC_PASSWORD no ambiente}
       FF_OPEN_URL: ${FF_OPEN_URL:-https://www.aqne.jus.br}
       http_proxy: http://proxy-egress:3128
       https_proxy: http://proxy-egress:3128
@@ -159,6 +159,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       SEGPORTAL_BOOTSTRAP_WAIT_SECONDS: "300"
       GUACAMOLE_VERSION: "1.5.5"
+      # Senhas provisionadas via Secret, nunca com default em claro.
+      GUACAMOLE_ADMIN_PASSWORD: ${GUACAMOLE_ADMIN_PASSWORD:?Defina GUACAMOLE_ADMIN_PASSWORD}
+      SEGPORTAL_VNC_PASSWORD: ${SEGPORTAL_VNC_PASSWORD:?Defina SEGPORTAL_VNC_PASSWORD}
     volumes:
       - ./scripts:/scripts:ro
     entrypoint: ["/bin/sh", "/scripts/bootstrap-segportal.sh"]

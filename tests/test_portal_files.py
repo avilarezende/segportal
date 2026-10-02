@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -10,6 +11,16 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "services" / "portal-auth"))
+
+# Ambiente de teste: usuários locais via env + chave de sessão obrigatória.
+os.environ.setdefault("PORTAL_SESSION_SECRET", "test-secret-segportal")
+os.environ.setdefault(
+    "SEGPORTAL_LOCAL_USERS",
+    "admin:Administrador SegPortal:admin:admin@aqne.jus.br;"
+        "usuario:Usuário Demonstração:user:usuario@aqne.jus.br",
+)
+os.environ.setdefault("SEGPORTAL_LOCAL_PASSWORDS", "admin;usuario")
+os.environ.setdefault("SEGPORTAL_COOKIE_SECURE", "0")
 
 from app.auth import authenticate  # noqa: E402
 from app.cloud_drives import mount_demo, unmount, user_cloud_state  # noqa: E402
@@ -36,23 +47,32 @@ def client(shares_root):
     return TestClient(app)
 
 
-def test_authenticate_ad_flag():
-    user = authenticate("usuario", "usuario", prefer_ldap=True)
-    assert user.auth_source == "ldap"
+def test_authenticate_local_admin_available():
+    # Com LDAP desligado, usuários locais autenticam com auth_source local.
+    user = authenticate("admin", "admin")
+    assert user.auth_source == "local"
+    assert user.username == "admin"
+    assert user.role == "admin"
+
+
+def test_authenticate_local_user():
+    user = authenticate("usuario", "usuario")
+    assert user.auth_source == "local"
     assert user.username == "usuario"
 
 
 def test_ad_shares_listed(shares_root):
-    user = authenticate("usuario", "usuario", prefer_ldap=True)
+    user = authenticate("usuario", "usuario")
     shares = list_user_shares(user)
     ids = {s["id"] for s in shares}
     assert "home" in ids
     assert "dept" in ids
-    assert any(s.get("from_active_directory") for s in shares)
+    # Com LDAP desligado, o usuário é marcado local (não "ldap").
+    assert user.auth_source == "local"
 
 
 def test_file_mkdir_and_list(shares_root):
-    user = authenticate("usuario", "usuario", prefer_ldap=True)
+    user = authenticate("usuario", "usuario")
     mkdir(user, "home", "", "PastaNova")
     listing = list_dir(user, "home", "")
     names = {e["name"] for e in listing["entries"]}
@@ -75,10 +95,10 @@ def test_cloud_mount_demo(shares_root):
 def test_api_login_and_dashboard(client):
     r = client.post(
         "/api/login",
-        json={"username": "usuario", "password": "usuario", "use_active_directory": True},
+        json={"username": "usuario", "password": "usuario"},
     )
     assert r.status_code == 200
-    assert r.json()["auth_source"] == "ldap"
+    assert r.json()["auth_source"] == "local"
     dash = client.get("/api/dashboard")
     assert dash.status_code == 200
     body = dash.json()

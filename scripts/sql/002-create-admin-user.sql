@@ -17,27 +17,30 @@
 -- under the License.
 --
 
--- Create default user "guacadmin" with password "guacadmin"
-INSERT INTO guacamole_entity (name, type) VALUES ('guacadmin', 'USER');
+-- Create default admin user without hardcoded secret.
+-- Password is supplied at apply time:
+--   psql -v v_admin_user="guacadmin" -v v_admin_hash="<hex sha256(password||salt)>" -v v_admin_salt="<hex>" -f 002-create-admin-user.sql
+-- See scripts/bootstrap-segportal.sh for hash generation.
+INSERT INTO guacamole_entity (name, type) VALUES (:'v_admin_user', 'USER');
 INSERT INTO guacamole_user (entity_id, password_hash, password_salt, password_date)
 SELECT
     entity_id,
-    decode('CA458A7D494E3BE824F5E1E175A1556C0F8EEF2C2D7DF3633BEC4A29C4411960', 'hex'),  -- 'guacadmin'
-    decode('FE24ADC5E11E2B25288D1704ABE67A79E342ECC26064CE69C5B3177795A82264', 'hex'),
+    decode(:'v_admin_hash', 'hex'),
+    decode(:'v_admin_salt', 'hex'),
     CURRENT_TIMESTAMP
-FROM guacamole_entity WHERE name = 'guacadmin' AND guacamole_entity.type = 'USER';
+FROM guacamole_entity WHERE name = :'v_admin_user' AND guacamole_entity.type = 'USER';
 
 -- Grant this user all system permissions
 INSERT INTO guacamole_system_permission (entity_id, permission)
 SELECT entity_id, permission::guacamole_system_permission_type
 FROM (
     VALUES
-        ('guacadmin', 'CREATE_CONNECTION'),
-        ('guacadmin', 'CREATE_CONNECTION_GROUP'),
-        ('guacadmin', 'CREATE_SHARING_PROFILE'),
-        ('guacadmin', 'CREATE_USER'),
-        ('guacadmin', 'CREATE_USER_GROUP'),
-        ('guacadmin', 'ADMINISTER')
+        (:'v_admin_user', 'CREATE_CONNECTION'),
+        (:'v_admin_user', 'CREATE_CONNECTION_GROUP'),
+        (:'v_admin_user', 'CREATE_SHARING_PROFILE'),
+        (:'v_admin_user', 'CREATE_USER'),
+        (:'v_admin_user', 'CREATE_USER_GROUP'),
+        (:'v_admin_user', 'ADMINISTER')
 ) permissions (username, permission)
 JOIN guacamole_entity ON permissions.username = guacamole_entity.name AND guacamole_entity.type = 'USER';
 
@@ -46,9 +49,9 @@ INSERT INTO guacamole_user_permission (entity_id, affected_user_id, permission)
 SELECT guacamole_entity.entity_id, guacamole_user.user_id, permission::guacamole_object_permission_type
 FROM (
     VALUES
-        ('guacadmin', 'guacadmin', 'READ'),
-        ('guacadmin', 'guacadmin', 'UPDATE'),
-        ('guacadmin', 'guacadmin', 'ADMINISTER')
+        (:'v_admin_user', :'v_admin_user', 'READ'),
+        (:'v_admin_user', :'v_admin_user', 'UPDATE'),
+        (:'v_admin_user', :'v_admin_user', 'ADMINISTER')
 ) permissions (username, affected_username, permission)
 JOIN guacamole_entity          ON permissions.username = guacamole_entity.name AND guacamole_entity.type = 'USER'
 JOIN guacamole_entity affected ON permissions.affected_username = affected.name AND guacamole_entity.type = 'USER'

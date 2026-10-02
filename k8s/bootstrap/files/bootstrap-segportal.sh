@@ -16,7 +16,7 @@ PG_HOST="${POSTGRES_HOSTNAME:-${POSTGRES_HOST:-localhost}}"
 PG_PORT="${POSTGRES_PORT:-5432}"
 PG_DB="${POSTGRES_DATABASE:-${POSTGRES_DB:-guacamole_db}}"
 PG_USER="${POSTGRES_USER:-guacamole_user}"
-PG_PASS="${POSTGRES_PASSWORD:-devpassword}"
+PG_PASS="${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD no ambiente}"
 WAIT_MAX="${SEGPORTAL_BOOTSTRAP_WAIT_SECONDS:-300}"
 
 export PGPASSWORD="$PG_PASS"
@@ -40,6 +40,17 @@ table_exists() {
   psql_q -tAc "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='$1'" 2>/dev/null | grep -q 1
 }
 
+# Gera hash de senha no formato Guacamole: SHA-256(UTF-8(password) || salt)
+# Usa openssl quando disponível; fallback para sha256sum.
+guac_hash() {
+  password="$1"
+  salt_hex="$2"
+  { printf '%s' "$password"; printf '%s' "$salt_hex" | xxd -r -p; } | openssl dgst -sha256 -binary | xxd -p -c 256
+}
+gen_salt() {
+  openssl rand -hex 32
+}
+
 if ! table_exists guacamole_connection; then
   echo "==> Schema Guacamole ausente — aplicando SQL local (001/002)..."
   if [ ! -f "${SQL_DIR}/001-create-schema.sql" ] || [ ! -f "${SQL_DIR}/002-create-admin-user.sql" ]; then
@@ -47,21 +58,36 @@ if ! table_exists guacamole_connection; then
     exit 1
   fi
   psql_q -f "${SQL_DIR}/001-create-schema.sql"
-  psql_q -f "${SQL_DIR}/002-create-admin-user.sql"
-  echo "==> Schema Guacamole aplicado (guacadmin / guacadmin)."
+  GUAC_ADMIN_USER="${GUACAMOLE_ADMIN_USER:-guacadmin}"
+  GUAC_ADMIN_PASSWORD="${GUACAMOLE_ADMIN_PASSWORD:?Defina GUACAMOLE_ADMIN_PASSWORD no ambiente}"
+  ADMIN_SALT=$(gen_salt)
+  ADMIN_HASH=$(guac_hash "$GUAC_ADMIN_PASSWORD" "$ADMIN_SALT")
+  psql_q -v v_admin_user="$GUAC_ADMIN_USER" -v v_admin_hash="$ADMIN_HASH" -v v_admin_salt="$ADMIN_SALT" -f "${SQL_DIR}/002-create-admin-user.sql"
+  echo "==> Schema Guacamole aplicado (admin provisionado via Secret)."
 else
   echo "==> Schema Guacamole já presente."
 fi
 
-# Garante guacadmin (caso só 001 tenha rodado)
+# Garante usuário admin (caso só 001 tenha rodado)
 if ! psql_q -tAc "SELECT 1 FROM guacamole_entity WHERE name='guacadmin' AND type='USER'" 2>/dev/null | grep -q 1; then
   echo "==> Criando usuário admin padrão..."
-  psql_q -f "${SQL_DIR}/002-create-admin-user.sql"
+  GUAC_ADMIN_PASSWORD="${GUACAMOLE_ADMIN_PASSWORD:?Defina GUACAMOLE_ADMIN_PASSWORD no ambiente}"
+  ADMIN_SALT=$(gen_salt)
+  ADMIN_HASH=$(guac_hash "$GUAC_ADMIN_PASSWORD" "$ADMIN_SALT")
+  psql_q -v v_admin_user="guacadmin" -v v_admin_hash="$ADMIN_HASH" -v v_admin_salt="$ADMIN_SALT" -f "${SQL_DIR}/002-create-admin-user.sql"
 fi
 
 for f in 003-segportal-roles.sql 004-default-browser.sql 005-connection-requests.sql; do
   echo "==> Aplicando $f"
-  psql_q -f "${SQL_DIR}/${f}"
+  case "$f" in
+    004-default-browser.sql)
+      VNC_PASS="${SEGPORTAL_VNC_PASSWORD:?Defina SEGPORTAL_VNC_PASSWORD no ambiente}"
+      psql_q -v v_vnc_password="$VNC_PASS" -f "${SQL_DIR}/${f}"
+      ;;
+    *)
+      psql_q -f "${SQL_DIR}/${f}"
+      ;;
+  esac
 done
 
 # BusyBox tr não trata bem [:space:] — limpa só whitespace ASCII

@@ -10,11 +10,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DISPLAY=:99 \
     DISPLAY_WIDTH=1280 \
     DISPLAY_HEIGHT=800 \
-    VNC_PASSWORD=segport1 \
     VNC_PORT=5900 \
     FF_OPEN_URL=https://example.com \
     LANG=C.UTF-8 \
-    MOZ_DISABLE_CONTENT_SANDBOX=1
+    MOZ_DISABLE_CONTENT_SANDBOX=1 \
+    # Senha VNC vem de Secret/env em runtime (nunca em camada de imagem)
+    VNC_PASSWORD=
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \

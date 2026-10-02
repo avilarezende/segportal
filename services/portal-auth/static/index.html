@@ -33,16 +33,15 @@
         <h2>Entrar no SegPortal</h2>
         <p class="hint">Conta local ou Active Directory. Após o login, lembretes e calendário já aparecem no dashboard.</p>
         <label for="username">Usuário</label>
-        <input id="username" name="username" value="usuario" required autocomplete="username" />
+        <input id="username" name="username" placeholder="seu.usuario" required autocomplete="username" />
         <label for="password">Senha</label>
-        <input id="password" name="password" type="password" value="usuario" required autocomplete="current-password" />
+        <input id="password" name="password" type="password" placeholder="••••••••" required autocomplete="current-password" />
         <label class="check">
           <input id="use-ad" type="checkbox" />
           Autenticar via Active Directory (monta pastas do AD)
         </label>
         <p id="login-error" class="error" hidden role="alert"></p>
         <button type="submit" class="btn primary block">Entrar no portal</button>
-        <p class="foot-hint">Demo: <code>usuario/usuario</code> ou <code>admin/admin</code></p>
       </form>
     </div>
   </section>
@@ -113,7 +112,7 @@
           </div>
           <div id="shares-grid" class="card-grid" role="list"></div>
           <p id="shares-empty" class="empty" hidden>
-            Nenhum compartilhamento AD disponível. Marque “Active Directory” no login ou peça liberação ao administrador.
+            Nenhum compartilhamento disponível para o seu usuário. Peça liberação ao administrador.
           </p>
         </section>
 

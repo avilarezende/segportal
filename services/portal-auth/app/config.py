@@ -44,7 +44,16 @@ class Settings:
         ui = shares_config().get("ui", {})
         ldap_on = bool(ldap_config().get("ldap", {}).get("enabled", False))
         demo_root = demo.get("root", "/tmp/segportal-shares")
-        self.session_secret = os.getenv("PORTAL_SESSION_SECRET", "segportal-dev-secret-change-me")
+
+        # Chave de assinatura da sessão: obrigatória e sem default conhecido.
+        secret = os.getenv("PORTAL_SESSION_SECRET", "")
+        if not secret or secret in ("segportal-dev-secret-change-me", "change-me", "change_me"):
+            raise RuntimeError(
+                "PORTAL_SESSION_SECRET não configurada (ou com valor padrão). "
+                "Defina uma chave forte via variável de ambiente antes de iniciar o portal."
+            )
+        self.session_secret = secret
+
         self.ldap_enabled = env_bool("LDAP_ENABLED", ldap_on)
         # URL interna de sessões (nunca exposta na UI)
         self.sessions_internal_url = os.getenv("SESSIONS_INTERNAL_URL", "")

@@ -30,10 +30,12 @@ spec:
               value: "800"
             - name: VNC_PORT
               value: "5900"
-            # Mesma senha do parâmetro Guacamole (004-default-browser.sql).
-            # Sobrescreva via Secret segportal-secrets/VNC_PASSWORD em produção.
+            # Senha VNC vem do Secret segportal-secrets, nunca hardcoded.
             - name: VNC_PASSWORD
-              value: "segport1"
+              valueFrom:
+                secretKeyRef:
+                  name: segportal-secrets
+                  key: VNC_PASSWORD
             - name: FF_OPEN_URL
               value: https://www.aqne.jus.br
             - name: http_proxy

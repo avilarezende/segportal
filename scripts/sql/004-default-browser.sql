@@ -56,13 +56,14 @@ SET max_connections = 50,
 WHERE connection_name = 'Navegador Web SegPortal';
 
 -- Parâmetros VNC (senha deve coincidir com VNC_PASSWORD do container web-browser)
+-- psql -v v_vnc_password="..." ao aplicar este arquivo.
 INSERT INTO guacamole_connection_parameter (connection_id, parameter_name, parameter_value)
 SELECT c.connection_id, p.name, p.value
 FROM guacamole_connection c
 CROSS JOIN (VALUES
   ('hostname', 'web-browser'),
   ('port', '5900'),
-  ('password', 'segport1'),
+  ('password', :'v_vnc_password'),
   ('read-only', 'false'),
   ('swap-red-blue', 'false'),
   ('cursor', 'local'),
@@ -85,7 +86,7 @@ FROM guacamole_connection c
 JOIN (VALUES
   ('hostname', 'web-browser'),
   ('port', '5900'),
-  ('password', 'segport1')
+  ('password', :'v_vnc_password')
 ) AS v(name, value) ON TRUE
 WHERE c.connection_name = 'Navegador Web SegPortal'
   AND cp.connection_id = c.connection_id

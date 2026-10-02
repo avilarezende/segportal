@@ -13,7 +13,8 @@ WIDTH="${DISPLAY_WIDTH:-1280}"
 HEIGHT="${DISPLAY_HEIGHT:-800}"
 GEOMETRY="${WIDTH}x${HEIGHT}x24"
 VNC_PORT="${VNC_PORT:-5900}"
-VNC_PASSWORD="${VNC_PASSWORD:-segport1}"
+# Senha VNC obrigatória via env (definida pelo Secret no deploy, nunca default).
+VNC_PASSWORD="${VNC_PASSWORD:?Defina VNC_PASSWORD via Secret/env}"
 FF_OPEN_URL="${FF_OPEN_URL:-https://www.aqne.jus.br}"
 PASSFILE="${HOME}/.vnc/passwd"
 LOGDIR="${HOME}/.segportal-logs"
@@ -22,8 +23,8 @@ mkdir -p "${HOME}/.vnc" "${HOME}/.cache" "${HOME}/.mozilla" "${LOGDIR}"
 
 # D-Bus ajuda o Firefox a iniciar estável em containers
 if command -v dbus-launch >/dev/null 2>&1; then
-  # shellcheck disable=SC2046
-  eval $(dbus-launch --sh-syntax)
+  export DBUS_SESSION_BUS_ADDRESS
+  DBUS_SESSION_BUS_ADDRESS="$(dbus-launch --sh-syntax | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p' | tr -d "'")"
 fi
 
 echo "==> SegPortal web-browser: Xvfb ${GEOMETRY} display=${DISPLAY}"
