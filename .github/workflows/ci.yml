@@ -121,7 +121,11 @@ jobs:
 
       - name: Validate docker-compose
         env:
+          # Valores dummy apenas para validação de sintaxe (config --quiet).
           POSTGRES_PASSWORD: ci_test_password
+          VNC_PASSWORD: ci_test_vnc_password
+          GUACAMOLE_ADMIN_PASSWORD: ci_test_admin_password
+          SEGPORTAL_VNC_PASSWORD: ci_test_vnc_password
           LDAP_HOSTNAME: ldap.aqne.jus.br
           LDAP_USER_BASE_DN: OU=Usuarios,DC=aqne,DC=jus,DC=br
           LDAP_SEARCH_BIND_DN: CN=svc-segportal,OU=Servicos,DC=aqne,DC=jus,DC=br
@@ -131,4 +135,5 @@ jobs:
       - name: Validate docker-compose.dev
         env:
           POSTGRES_PASSWORD: ci_test_password
+          VNC_PASSWORD: ci_test_vnc_password
         run: docker compose -f docker-compose.dev.yml config --quiet
