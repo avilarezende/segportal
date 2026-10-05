@@ -1,7 +1,7 @@
 # SegPortal AQNE — guacd (Guacamole proxy daemon)
 ARG GUACD_VERSION=1.5.5
 
-FROM guacamole/guacd:${GUACD_VERSION}
+FROM guacamole/guacd:1.5.5@sha256:38232cae271361ef53db46faf5c49fe64049a1320a05b82c597425b69d6ce77e
 
 LABEL org.opencontainers.image.title="segportal-guacd" \
       org.opencontainers.image.description="Guacamole proxy daemon for SegPortal AQNE" \

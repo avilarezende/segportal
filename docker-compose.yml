@@ -3,7 +3,7 @@
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-guacamole_db}
@@ -132,7 +132,10 @@ services:
     ports:
       - "8090:8090"
     environment:
-      PORTAL_SESSION_SECRET: ${PORTAL_SESSION_SECRET:-segportal-dev-secret-change-me}
+      SEGPORTAL_ENV: ${SEGPORTAL_ENV:-production}
+      SEGPORTAL_SHARES_CONFIG: /app/config/files/shares.production.yaml
+      SEGPORTAL_COOKIE_SECURE: "1"
+      PORTAL_SESSION_SECRET: ${PORTAL_SESSION_SECRET:?Defina PORTAL_SESSION_SECRET forte}
       DEMO_SHARES_ROOT: /data/shares
       LDAP_ENABLED: ${LDAP_ENABLED:-false}
       SESSIONS_INTERNAL_URL: ${SESSIONS_INTERNAL_URL:-http://localhost:8080/guacamole}
@@ -149,7 +152,7 @@ services:
 
   # Schema + papéis + "Navegador Web SegPortal" para todos — automático no boot
   segportal-bootstrap:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     restart: "no"
     environment:
       POSTGRES_HOSTNAME: postgres

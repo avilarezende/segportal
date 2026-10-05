@@ -10,7 +10,7 @@ from typing import Any
 import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
-SHARES_YAML = ROOT / "config" / "files" / "shares.yaml"
+SHARES_YAML = Path(os.getenv("SEGPORTAL_SHARES_CONFIG", ROOT / "config" / "files" / "shares.yaml"))
 LDAP_YAML = ROOT / "config" / "ldap" / "ldap-settings.yaml"
 
 
@@ -40,10 +40,13 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 class Settings:
     def __init__(self) -> None:
+        self.env = os.getenv("SEGPORTAL_ENV", "development")
+        if self.env not in {"development", "staging", "production"}:
+            raise RuntimeError("SEGPORTAL_ENV inválido")
         demo = shares_config().get("shares", {}).get("demo", {})
         ui = shares_config().get("ui", {})
         ldap_on = bool(ldap_config().get("ldap", {}).get("enabled", False))
-        demo_root = demo.get("root", "/tmp/segportal-shares")
+        demo_root = demo.get("root", str(Path.home() / ".local" / "share" / "segportal" / "shares"))
 
         # Chave de assinatura da sessão: obrigatória e sem default conhecido.
         secret = os.getenv("PORTAL_SESSION_SECRET", "")
@@ -53,6 +56,18 @@ class Settings:
                 "Defina uma chave forte via variável de ambiente antes de iniciar o portal."
             )
         self.session_secret = secret
+
+        if self.env in {"staging", "production"}:
+            if len(secret) < 32 or any(
+                s in secret.lower() for s in ("change-me", "test-", "example")
+            ):
+                raise RuntimeError("PORTAL_SESSION_SECRET forte é obrigatória em produção")
+            if not env_bool("SEGPORTAL_COOKIE_SECURE", True):
+                raise RuntimeError("Produção requer cookies Secure (HTTPS)")
+            if not env_bool("SEGPORTAL_RATE_LIMIT_ENABLED", True):
+                raise RuntimeError("Produção requer rate limiting")
+            if demo.get("enabled", True):
+                raise RuntimeError("Produção requer shares de demonstração desativados")
 
         self.ldap_enabled = env_bool("LDAP_ENABLED", ldap_on)
         # URL interna de sessões (nunca exposta na UI)

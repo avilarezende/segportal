@@ -1,7 +1,7 @@
 # SegPortal — navegador HTML5 clientless (Firefox via VNC)
 # Imagem própria (Xvfb + x11vnc + Firefox ESR) — compatível com guacd/Guacamole.
 # Acessado apenas via guacd na rede interna (porta 5900).
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251
 
 LABEL org.opencontainers.image.title="segportal-web-browser"
 LABEL org.opencontainers.image.description="Navegador HTML padrão SegPortal AQNE (VNC→Guacamole)"

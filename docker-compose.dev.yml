@@ -4,18 +4,17 @@
 # Uso:
 #   docker compose -f docker-compose.dev.yml up --build
 #   Acesse: http://localhost:8080/guacamole
-#   Admin:   guacadmin / guacadmin
-#   Usuário: usuario / usuario
+#   Credenciais próprias via ambiente; não há senhas demo embutidas.
 #   Conexão padrão: "Navegador Web SegPortal"
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     restart: unless-stopped
     environment:
       POSTGRES_DB: guacamole_db
       POSTGRES_USER: guacamole_user
-      POSTGRES_PASSWORD: devpassword
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina senha própria do banco de desenvolvimento}
     volumes:
       - postgres-dev-data:/var/lib/postgresql/data
     healthcheck:
@@ -25,7 +24,7 @@ services:
       retries: 10
 
   guacd:
-    image: guacamole/guacd:1.5.5
+    image: guacamole/guacd:1.5.5@sha256:38232cae271361ef53db46faf5c49fe64049a1320a05b82c597425b69d6ce77e
     restart: unless-stopped
 
   web-browser:
@@ -51,16 +50,18 @@ services:
       start_period: 30s
 
   segportal-bootstrap:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     restart: "no"
     environment:
       POSTGRES_HOSTNAME: postgres
       POSTGRES_PORT: "5432"
       POSTGRES_DB: guacamole_db
       POSTGRES_USER: guacamole_user
-      POSTGRES_PASSWORD: devpassword
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina senha própria do banco de desenvolvimento}
       SEGPORTAL_BOOTSTRAP_WAIT_SECONDS: "300"
       GUACAMOLE_VERSION: "1.5.5"
+      GUACAMOLE_ADMIN_PASSWORD: ${GUACAMOLE_ADMIN_PASSWORD:?Defina senha própria do admin}
+      SEGPORTAL_VNC_PASSWORD: ${SEGPORTAL_VNC_PASSWORD:?Defina senha VNC}
     volumes:
       - ./scripts:/scripts:ro
     entrypoint: ["/bin/sh", "/scripts/bootstrap-segportal.sh"]
@@ -69,16 +70,16 @@ services:
         condition: service_healthy
 
   guacamole:
-    image: guacamole/guacamole:1.5.5
+    image: guacamole/guacamole:1.5.5@sha256:0f62f6d17ab379e46aa66874b2ff564dab856a6ef5e754a69cbb34c32d3e588a
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       POSTGRES_HOSTNAME: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DATABASE: guacamole_db
       POSTGRES_USER: guacamole_user
-      POSTGRES_PASSWORD: devpassword
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina senha própria do banco de desenvolvimento}
       GUACD_HOSTNAME: guacd
       GUACD_PORT: 4822
     depends_on:

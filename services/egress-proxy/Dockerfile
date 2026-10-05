@@ -1,5 +1,5 @@
 # SegPortal AQNE — institutional egress proxy (Squid)
-FROM ubuntu/squid:6.6-24.04_edge
+FROM ubuntu/squid:6.6-24.04_edge@sha256:8a3baed477e2c282ab8aa5edad442f69873246964f225c5c2ae8364b6610963c
 
 LABEL org.opencontainers.image.title="segportal-egress-proxy" \
       org.opencontainers.image.description="Controlled HTTP egress for SegPortal AQNE" \

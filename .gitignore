@@ -11,3 +11,5 @@ __pycache__/
 node_modules/
 docker-data/
 .DS_Store
+
+!.env.*.example

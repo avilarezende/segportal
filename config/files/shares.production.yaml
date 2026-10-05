@@ -1,0 +1,10 @@
+# Configure corporate shares and OAuth for your deployment; no demo data.
+shares:
+  demo:
+    enabled: false
+  corporate: []
+cloud_drives:
+  onedrive:
+    enabled: false
+  google_drive:
+    enabled: false

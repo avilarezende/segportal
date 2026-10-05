@@ -1,0 +1,19 @@
+{
+  "actions": {
+    "actions/checkout@v4": "11d5960a326750d5838078e36cf38b85af677262",
+    "docker/login-action@v3": "c94ce9fb468520275223c153574b00df6fe4bcc9",
+    "docker/setup-buildx-action@v3": "8d2750c68a42422c14e847fe6c8ac0403b4cbd6f",
+    "docker/build-push-action@v6": "10e90e3645eae34f1e60eeb005ba3a3d33f178e8",
+    "azure/setup-kubectl@v4": "776406bce94f63e41d621b960d78ee25c8b76ede",
+    "gitleaks/gitleaks-action@v2": "ff98106e4c7b2bc287b24eaf42907196329070c7",
+    "actions/setup-python@v5": "a26af69be951a213d495a4c3e4e4022e16d87065"
+  },
+  "images": {
+    "python:3.12-slim": "sha256:02108f5d322dd89f1c9e552442c25acb0543dfdbc455693a5599624f20d9155d",
+    "ubuntu/squid:6.6-24.04_edge": "sha256:8a3baed477e2c282ab8aa5edad442f69873246964f225c5c2ae8364b6610963c",
+    "guacamole/guacd:1.5.5": "sha256:38232cae271361ef53db46faf5c49fe64049a1320a05b82c597425b69d6ce77e",
+    "guacamole/guacamole:1.5.5": "sha256:0f62f6d17ab379e46aa66874b2ff564dab856a6ef5e754a69cbb34c32d3e588a",
+    "debian:bookworm-slim": "sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251",
+    "postgres:16-alpine": "sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea"
+  }
+}

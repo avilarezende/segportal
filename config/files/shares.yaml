@@ -19,7 +19,8 @@ shares:
 
   demo:
     enabled: true
-    root: /tmp/segportal-shares
+    # Bare development uses the current user's data directory.
+    # Containers and cloud setup set DEMO_SHARES_ROOT explicitly.
     users:
       admin:
         - id: home

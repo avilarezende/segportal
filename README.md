@@ -201,3 +201,9 @@ Leia [CONTRIBUTING.md](CONTRIBUTING.md) antes de abrir pull requests.
 ## Licença
 
 Uso interno AQNE. Consulte a área de TI para termos de distribuição.
+
+## Ambiente na nuvem
+
+Instalação, locks, diagnóstico e separação desenvolvimento/produção estão documentados em
+[`antigravity-config/cloud/README.md`](../antigravity-config/cloud/README.md) no workspace com os sete checkouts.
+No GitHub: [guia do ambiente](https://github.com/avilarezende/antigravity-config/blob/main/cloud/README.md).
