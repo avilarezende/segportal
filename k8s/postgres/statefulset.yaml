@@ -33,9 +33,17 @@ spec:
         app.kubernetes.io/name: postgres
         app.kubernetes.io/component: database
     spec:
+      # A imagem oficial do Postgres inicializa como root (chown do PGDATA) e
+      # dropa privilégios via gosu; por isso não forçamos runAsNonRoot/drop-caps
+      # aqui, mantendo apenas o que é seguro sem quebrar o initdb.
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
           image: postgres:16-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: 5432
               name: postgres

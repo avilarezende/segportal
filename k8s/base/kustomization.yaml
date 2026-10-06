@@ -13,6 +13,7 @@ resources:
   - ../web-browser
   - ../bootstrap
   - ../ingress
+  - ../networkpolicy
 
 commonLabels:
   app.kubernetes.io/part-of: segportal

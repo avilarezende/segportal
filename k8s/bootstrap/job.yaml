@@ -15,9 +15,17 @@ spec:
         app: segportal-bootstrap
     spec:
       restartPolicy: OnFailure
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: bootstrap
           image: postgres:16-alpine
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: POSTGRES_HOSTNAME
               value: postgres

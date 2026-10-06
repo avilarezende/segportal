@@ -32,9 +32,20 @@ spec:
         app.kubernetes.io/name: guacd
         app.kubernetes.io/component: guacd
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: guacd
           image: registry.aqne.jus.br/segportal/guacd:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 4822
               name: guacd

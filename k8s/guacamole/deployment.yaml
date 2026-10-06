@@ -32,9 +32,20 @@ spec:
         app.kubernetes.io/name: guacamole
         app.kubernetes.io/component: guacamole
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: guacamole
           image: registry.aqne.jus.br/segportal/guacamole:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 8080
               name: http
